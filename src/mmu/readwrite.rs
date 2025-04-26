@@ -48,7 +48,7 @@ impl Mmu {
     /// Write a byte to memory. There are many side-effects and special cases that determine
     /// how exactly the read is processed.
     pub fn write_byte(&mut self, addr: u16, byte: u8) {
-        let mem_region= map_region(addr);
+        let mem_region = map_region(addr);
         let index = map_addr(addr);
 
         if (addr == SC_ADDR) && (byte == TRANSFER_REQUESTED_VALUE) {
@@ -95,7 +95,7 @@ impl Mmu {
     /// Read one byte from memory, bypassing all of the special cases
     /// and side-effects of the standard read_byte function. Use this with caution!
     pub fn read_byte_override(&self, addr: u16) -> u8 {
-        let mem_region= map_region(addr);
+        let mem_region = map_region(addr);
         let index = map_addr(addr);
 
         use MemRegion as M;
@@ -106,7 +106,7 @@ impl Mmu {
             M::Exram => self.exram[index],
             M::Wram0 => self.wram_0[index],
             M::Wram1 => self.wram_1[index],
-            M::EchoRam => self.read_byte(addr - ECHO_OFFSET),
+            M::EchoRam => self.read_byte_override(addr - ECHO_OFFSET),
             M::Oam => self.oam[index],
             M::Restricted => self.restricted_memory[index],
             M::Io => self.io[index],
@@ -114,8 +114,6 @@ impl Mmu {
             M::Ie => self.ie,
         }
     }
-
-   
 
     /// Write one byte from memory, bypassing all of the special cases
     /// and side-effects of the standard read_byte function. Use this with caution!
@@ -131,7 +129,7 @@ impl Mmu {
             M::Exram => self.exram[index] = byte,
             M::Wram0 => self.wram_0[index] = byte,
             M::Wram1 => self.wram_1[index] = byte,
-            M::EchoRam => self.write_byte(addr - ECHO_OFFSET, byte),
+            M::EchoRam => self.write_byte_override(addr - ECHO_OFFSET, byte),
             M::Oam => self.oam[index] = byte,
             M::Restricted => self.restricted_memory[index] = byte,
             M::Io => self.io[index] = byte,
@@ -161,5 +159,4 @@ impl Mmu {
         set_bit(&mut byte, interrupt_bit, true);
         self.write_byte(IF_ADDR, byte);
     }
-
 }
