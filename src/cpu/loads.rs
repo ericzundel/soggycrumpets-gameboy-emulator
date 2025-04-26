@@ -27,18 +27,6 @@ impl Cpu {
         }
     }
 
-    // todo!
-    // This function will go away once all opcodes are m-cycle accurate
-    pub fn push_r16_instant(&mut self, r16: R16) {
-        // Decrement sp first
-        let sp = self.reg.get16(R16::SP).wrapping_sub(2);
-        self.reg.set16(R16::SP, sp);
-
-        // Push the byte next
-        let word = self.reg.get16(r16);
-        self.write_word(sp, word);
-    }
-
     pub fn pop_r16(&mut self, r16: R16) {
         match self.instruction_m_cycles_remaining {
             // Internal delay

@@ -3,7 +3,6 @@
 
 mod cli;
 mod debugger;
-mod constants;
 mod cpu;
 mod mmu;
 mod ppu;
@@ -26,6 +25,7 @@ use cpu::registers::R16;
 
 const SYSTEM_CLOCK_FREQUENCY: f64 = (1 << 22) as f64; // Hz
 const SYSTEM_CLOCK_PERIOD: f64 = 1.0 / SYSTEM_CLOCK_FREQUENCY; // Seconds
+pub const M_CYCLE_DURATION: u32 = 4;
 
 fn main() {
     let input = parse_cli_inputs();

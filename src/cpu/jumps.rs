@@ -100,12 +100,6 @@ impl Cpu {
         }
     }
     
-    // Currently, this function is only used by interrupts.
-    pub fn rst_vec_instant(&mut self, addr: u16) {
-        self.push_r16_instant(R16::PC);
-        self.jp_u16(addr);
-    }
-
     pub fn call_a16(&mut self) {
         match self.instruction_m_cycles_remaining {
             // Fetch

@@ -8,10 +8,9 @@ mod jumps;
 mod loads;
 pub mod registers;
 
-use crate::constants::M_CYCLE_DURATION;
 use crate::mmu::Mmu;
 use crate::mmu::memmap::{
-    IE_ADDR, IF_ADDR, JOYPAD_INTERRUPT_BIT, JOYPAD_INTERRUPT_HANDLER_ADDR, LY_ADDR,
+    IE_ADDR, IF_ADDR, JOYPAD_INTERRUPT_BIT, JOYPAD_INTERRUPT_HANDLER_ADDR,
     SERIAL_INTERRUPT_BIT, SERIAL_INTERRUPT_HANDLER_ADDR, STAT_INTERRUPT_BIT,
     STAT_INTERRUPT_HANDLER_ADDR, TIMER_INTERRUPT_BIT, TIMER_INTERRUPT_HANDLER_ADDR,
     VBLANK_INTERRUPT_BIT, VBLANK_INTERRUPT_HANDLER_ADDR,
@@ -45,7 +44,7 @@ pub struct Cpu {
 
     prev_instruction: u8,
     current_instruction: u8,
-    current_instruction_is_prefixed: bool,
+    prefixed_instruction_mode: bool,
     pub instruction_t_cycles_remaining: u8,
     instruction_m_cycles_remaining: u8,
 
@@ -71,7 +70,7 @@ impl Cpu {
 
             prev_instruction: 0,
             current_instruction: 0,
-            current_instruction_is_prefixed: false,
+            prefixed_instruction_mode: false,
             instruction_t_cycles_remaining: 0,
             instruction_m_cycles_remaining: 0,
 
@@ -102,7 +101,7 @@ impl Cpu {
         }
 
         if !self.halted && !self.handling_interrupt {
-            if !self.current_instruction_is_prefixed {
+            if !self.prefixed_instruction_mode {
                 self.execute();
             } else {
                 self.execute_prefixed();
@@ -114,23 +113,6 @@ impl Cpu {
         }
     }
 
-    // This is basically fetch_byte, but with the halt bug implemented.
-    pub fn fetch_instruction(&mut self) -> u8 {
-        let pc = self.reg.get16(R16::PC);
-        let byte = self.read_byte(pc);
-
-        let next_addr = if !self.halt_bug_active {
-            pc.wrapping_add(1)
-        } else {
-            println!("Halt bug!");
-            self.halt_bug_active = false;
-            pc
-        };
-
-        self.reg.set16(R16::PC, next_addr);
-        byte
-    }
-
     fn fetch_byte(&mut self) -> u8 {
         let pc = self.reg.get16(R16::PC);
         let byte = self.read_byte(pc);
@@ -138,7 +120,6 @@ impl Cpu {
         let next_addr = if !self.halt_bug_active {
             pc + 1
         } else {
-            println!("Halt bug!");
             self.halt_bug_active = false;
             pc
         };

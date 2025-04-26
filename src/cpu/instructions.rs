@@ -4,12 +4,12 @@ impl Cpu {
 pub fn execute(&mut self) {
         // todo! Move this under "Fetch instruction"
         let instruction = if self.instruction_t_cycles_remaining == 0 {
-            let opcode = self.fetch_instruction();
+            let opcode = self.fetch_byte();
             self.prev_instruction = self.current_instruction;
             self.current_instruction = opcode;
             self.instruction_t_cycles_remaining =
                 UNPREFIXED_INSTRUCTION_T_CYCLE_TABLE[opcode as usize];
-            self.instruction_m_cycles_remaining = self.instruction_t_cycles_remaining / 4;
+            self.instruction_m_cycles_remaining = self.instruction_t_cycles_remaining / M_CYCLE_DURATION as u8;
             opcode
         } else {
             match self.current_instruction {
@@ -58,15 +58,9 @@ pub fn execute(&mut self) {
         };
 
         let pc = self.reg.get16(R16::PC);
-        let sp = self.reg.get16(R16::SP);
         if pc == 0x0100 {
             println!("RESET");
         }
-
-        // println!(
-        //     "OP: {:02x}, PC: {:04x}, SP: {:04x} CYCLE: {}",
-        //     self.current_instruction, pc, sp, self.instruction_m_cycles_remaining
-        // );
 
         match instruction {
             0x00 => (),                                // NOP
@@ -284,7 +278,7 @@ pub fn execute(&mut self) {
             0xC8 => self.ret_cc(Flag::Z, true),       // RET Z
             0xC9 => self.ret(),                       // RET
             0xCA => self.jp_cc_a16(Flag::Z, true),    // JP Z, a16
-            0xCB => self.current_instruction_is_prefixed = true, // PREFIX
+            0xCB => self.prefixed_instruction_mode = true, // PREFIX
             0xCC => self.call_cc_a16(Flag::Z, true),  // CALL Z, a16
             0xCD => self.call_a16(),                  // CALL a16
             0xCE => self.alu_a_n8(AluBinary::Adc),    // ADC A, n8
@@ -347,7 +341,7 @@ pub fn execute(&mut self) {
         // todo! Move this under "Fetch instruction"
         let instruction = if self.current_instruction == 0xCB {
             self.prev_instruction = self.current_instruction;
-            self.current_instruction = self.fetch_instruction();
+            self.current_instruction = self.fetch_byte();
             self.instruction_t_cycles_remaining = PREFIXED_INSTRUCTION_T_CYCLE_TABLE
                 [self.current_instruction as usize]
                 - M_CYCLE_DURATION as u8;
@@ -359,9 +353,9 @@ pub fn execute(&mut self) {
             self.current_instruction
         };
 
-        // If this is the last cycle of the instruction, get ready to execute an unprefixed instruction next time
+        // The CPU has to know when to switch back into "unprefixed mode"
         if self.instruction_m_cycles_remaining == 1 {
-            self.current_instruction_is_prefixed = false;
+            self.prefixed_instruction_mode = false;
         }
 
         match instruction {

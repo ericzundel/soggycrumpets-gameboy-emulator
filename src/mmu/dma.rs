@@ -1,4 +1,4 @@
-use crate::constants::M_CYCLE_DURATION;
+use crate::M_CYCLE_DURATION;
 
 use super::{
     Mmu,
