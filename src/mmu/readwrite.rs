@@ -51,6 +51,7 @@ impl Mmu {
         let mem_region = map_region(addr);
         let index = map_addr(addr);
 
+        // Blargg's test roms use the serial output registers to output test results
         if (addr == SC_ADDR) && (byte == TRANSFER_REQUESTED_VALUE) {
             let c = self.read_byte(SB_ADDR) as char;
             print!("{}", c);
@@ -75,7 +76,6 @@ impl Mmu {
                 }
             }
             M::Restricted => self.restricted_memory[index] = byte,
-            // IO writes have special behaviors
             M::Io => match addr {
                 DIV_ADDR => self.write_byte_div(),
                 TMA_ADDR => self.write_byte_tma(byte),

@@ -1,16 +1,15 @@
 use crate::mmu::memmap::VBLANK_INTERRUPT_BIT;
 
 use super::{
-    HBLANK_MAX_DOTS, OAM_SCAN_DOTS, PIXEL_DRAW_MIN_DOTS, Ppu, PpuMode,
-    FRAME_DOTS, VBLANK_DOTS,
+    DISPLAY_HEIGHT, DOTS_PER_SCANLINE, HBLANK_MAX_DOTS, OAM_SCAN_DOTS, PIXEL_DRAW_MIN_DOTS, Ppu,
+    PpuMode, VBLANK_DOTS, fetcher::FetcherState,
 };
 
 impl Ppu {
     pub fn oam_scan(&mut self) {
         // OAMSCAN -> PIXELDRAW
-        if self.mode_dots == OAM_SCAN_DOTS {
+        if OAM_SCAN_DOTS == self.mode_dots {
             self.set_mode(PpuMode::PixelDraw);
-            self.lx = 0;
 
             self.mmu.borrow_mut().vram_lock = true;
         }
@@ -19,35 +18,47 @@ impl Ppu {
     pub fn pixel_draw(&mut self) {
         // PIXELDRAW -> HBLANK
         self.tick_fetcher();
-        if self.mode_dots == PIXEL_DRAW_MIN_DOTS {
+        if PIXEL_DRAW_MIN_DOTS == self.mode_dots {
             self.set_mode(PpuMode::HBlank);
-            self.mmu.borrow_mut().vram_lock = false;
-            self.mmu.borrow_mut().oam_lock = false;
+
+            // Reset fetcher
+            self.fetcher.state = FetcherState::GetTile;
             self.wx_triggered = false;
             self.fetcher.drawing_window = false;
+
+            let mut mmu = self.mmu.borrow_mut();
+            mmu.vram_lock = false;
+            mmu.oam_lock = false;
         }
     }
 
     pub fn hblank(&mut self) {
-        // HBLANK -> VBLANK
-        if self.frame_dots == FRAME_DOTS - VBLANK_DOTS {
-            self.set_mode(PpuMode::VBlank);
-            self.mmu
-                .borrow_mut()
-                .request_interrupt(VBLANK_INTERRUPT_BIT);
-        // HBLANK -> OAMSCAN
-        } else if self.mode_dots == HBLANK_MAX_DOTS
-        {
-            self.set_mode(PpuMode::OamScan);
-            self.mmu.borrow_mut().oam_lock = true;
+        if HBLANK_MAX_DOTS == self.mode_dots {
+            // HBLANK -> VBLANK
+            if self.ly == DISPLAY_HEIGHT - 1 {
+                self.set_mode(PpuMode::VBlank);
+                self.mmu
+                    .borrow_mut()
+                    .request_interrupt(VBLANK_INTERRUPT_BIT);
+            // HBLANK -> OAMSCAN
+            } else {
+                self.set_mode(PpuMode::OamScan);
+                self.mmu.borrow_mut().oam_lock = true;
+            }
+            self.inc_ly();
         }
     }
 
     pub fn vblank(&mut self) {
-        if self.mode_dots == VBLANK_DOTS {
-            // println!("VBLANK -> OAM");
-            self.set_mode(PpuMode::OamScan);
-            self.mmu.borrow_mut().oam_lock = true;
+        if self.scanline_dots == DOTS_PER_SCANLINE {
+            self.inc_ly();
+            if VBLANK_DOTS == self.mode_dots {
+                // println!("VBLANK -> OAM");
+                self.set_mode(PpuMode::OamScan);
+                self.mmu.borrow_mut().oam_lock = true;
+                self.reset_ly();
+                self.frame_complete = true;
+            }
         }
     }
 }

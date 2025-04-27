@@ -5,7 +5,7 @@ use super::{
     memmap::{DMA_ADDR, map_addr},
 };
 
-// todo! This should really be 4. It seems like my timing logic starts DMA a cycle early by default.
+// This should really be 4. It seems like my timing logic starts DMA a cycle early by default.
 // Although, the timing is lining up exactly as it should right now.
 // This may ba a "if it ain't broke, don't fix it" type of situation.
 const DMA_TRANSFER_T_DELAY: u16 = 8;
@@ -33,7 +33,6 @@ impl Dma {
 impl Mmu {
     pub fn start_dma_transfer(&mut self, dma_byte: u8) {
         // The DMA register needs to be updated first
-
         let index = map_addr(DMA_ADDR);
         self.io[index] = dma_byte;
 
@@ -54,7 +53,6 @@ impl Mmu {
         {
             return;
         }
-        // println!("CYCLE: {}", self.dma.timer);
         self.oam_lock = true;
 
         // Copy data one byte at a time
@@ -64,8 +62,6 @@ impl Mmu {
         let target_addr = DMA_TARGET_START_ADDR + current_index;
         let byte = self.read_byte_override(source_addr);
         self.write_byte_override(target_addr, byte);
-
-        // println!("{:02x}: {:04x} => {:04x}", byte, source_addr, target_addr);
 
         if self.dma.timer == 0 {
             self.oam_lock = false;

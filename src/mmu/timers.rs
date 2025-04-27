@@ -141,7 +141,7 @@ impl Mmu {
     // ----- Special-Case Memory Reads/Writes -----
 
     /// Writes to the DIV register do not directly change its value. Instead, they reset
-    /// whe system clock. However, resetting the system clock can also increment TIMA
+    /// the system clock. However, resetting the system clock can also increment TIMA
     /// if it unsets TIMA's active bit!
     pub fn write_byte_div(&mut self) {
         let tima_bit_was_active = self.get_tima_bit_state(false);

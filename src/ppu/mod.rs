@@ -2,17 +2,20 @@ mod fetcher;
 mod state_machine;
 mod tiles;
 
+// The startup of the PPU is a bit buggy right now. It takes a cycle for
+// everything to sync up properly
+
 // https://gbdev.io/pandocs/Rendering.html
 const FRAME_DOTS: u32 = 70224;
 const SCANLINES_PER_FRAME: u32 = 154;
-const T_CYCLES_PER_SCANLINE: u32 = FRAME_DOTS / SCANLINES_PER_FRAME;
+const DOTS_PER_SCANLINE: u32 = FRAME_DOTS / SCANLINES_PER_FRAME;
 
 const OAM_SCAN_DOTS: u32 = 80;
 const PIXEL_DRAW_MIN_DOTS: u32 = 172;
 const PIXEL_DRAW_MAX_T_CYCLES: u32 = 289;
 const HBLANK_MIN_T_CYCLES: u32 = 87;
 const HBLANK_MAX_DOTS: u32 = 204;
-const VBLANK_DOTS: u32 = T_CYCLES_PER_SCANLINE * 10;
+const VBLANK_DOTS: u32 = DOTS_PER_SCANLINE * 10;
 
 const HBLANK_MODE_NUMBER: u8 = 0;
 const VBLANK_MODE_NUMBER: u8 = 1;
@@ -20,17 +23,16 @@ const OAM_SCAN_MODE_NUMBER: u8 = 2;
 const PIXEL_DRAW_MODE_NUMBER: u8 = 3;
 
 const WINDOW_WIDTH: u8 = 160;
-const WINDOW_HEIGHT: u8 = 144;
+const DISPLAY_HEIGHT: u8 = 144;
 
 use crate::{
     mmu::{self, memmap::*},
     util::{get_bit, set_bit},
 };
-use fetcher::{Fetcher, FetcherState};
+use fetcher::Fetcher;
 use mmu::Mmu;
 use std::{cell::RefCell, rc::Rc};
 
-pub type GbBackground = [[u8; 256]; 256];
 pub type GbDisplay = [[u8; 160]; 144];
 
 #[repr(u8)]
@@ -45,6 +47,7 @@ pub enum PpuMode {
 pub struct Ppu {
     mmu: Rc<RefCell<Mmu>>,
     was_enabled: bool,
+    frame_complete: bool,
 
     pub display: GbDisplay,
 
@@ -57,7 +60,6 @@ pub struct Ppu {
     wx_triggered: bool,
     window_drawn_this_scanline: bool,
 
-    frame_dots: u32,
     scanline_dots: u32,
     mode_dots: u32,
 
@@ -70,6 +72,7 @@ impl Ppu {
         Ppu {
             mmu,
             was_enabled: false,
+            frame_complete: false,
 
             display: [[0; 160]; 144],
 
@@ -82,7 +85,6 @@ impl Ppu {
             wx_triggered: false,
             window_drawn_this_scanline: false,
 
-            frame_dots: 0,
             scanline_dots: 0,
             mode_dots: 0,
 
@@ -93,8 +95,6 @@ impl Ppu {
 
     /// This function progresses the state of the PPU by one t-cycle.
     pub fn tick(&mut self) -> bool {
-        let mut frame_complete = false;
-
         let ppu_mode = self.get_mode();
         let enabled = self.get_lcdc_flag(LCD_AND_PPU_ENABLE_BIT);
 
@@ -106,10 +106,9 @@ impl Ppu {
         self.was_enabled = enabled;
 
         if !enabled {
-            return frame_complete;
+            return false;
         }
 
-        self.frame_dots += 1;
         self.scanline_dots += 1;
         self.mode_dots += 1;
 
@@ -120,22 +119,15 @@ impl Ppu {
             PpuMode::VBlank => self.vblank(),
         }
 
-        if self.scanline_dots == T_CYCLES_PER_SCANLINE {
-            self.scanline_dots = 0;
-            self.inc_ly();
-        }
-
-        if self.frame_dots == FRAME_DOTS {
-            self.frame_dots = 0;
-            self.reset_ly();
-            frame_complete = true;
-        }
-
+        let frame_complete = self.frame_complete;
+        self.frame_complete = false;
         frame_complete
     }
 
     fn inc_ly(&mut self) {
+        self.scanline_dots = 0;
         self.ly += 1;
+        self.lx = 0;
         self.mmu.borrow_mut().write_byte_override(LY_ADDR, self.ly);
 
         self.update_wy();
@@ -226,12 +218,11 @@ impl Ppu {
 
         self.mmu.borrow_mut().write_byte_override(STAT_ADDR, byte);
 
-        self.mode_dots = 0;
         self.update_ppu_status_registers();
+        self.mode_dots = 0;
     }
 
     fn turn_off(&mut self) {
-        self.frame_dots = 0;
         self.scanline_dots = 0;
         self.mode_dots = 0;
         self.ly = 0;

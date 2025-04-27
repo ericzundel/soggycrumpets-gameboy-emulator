@@ -16,8 +16,12 @@ pub enum FetcherState {
     Push,
 }
 
+/// The fetcher is a state machine within the PPU state machine.
+/// It retrieves pixel data from memory to be drawn to the screen, one tile row (8 pixels) at a time.
+/// It operates over the duration of the pixel-draw state, retrieving one scanline worth of pixels.
+#[derive(Debug)]
 pub struct Fetcher {
-    state: FetcherState,
+    pub state: FetcherState,
 
     x: u8,
     y: u8,
@@ -51,12 +55,18 @@ impl Fetcher {
 }
 
 impl Ppu {
+    /// This implementation of the fetcher, at least for now, is greatly simplified.
+    /// Each state is completing within a constant time of 2 dots/t-cycles.
+    /// The fetcher normally works with a pixel FIFO (first-in, first-out) to render
+    /// to the screen, but this implementation does not use the FIFO.
+    /// The way it works now: 8 t-cycles to draw 8 pixels, 160 t-cycles to draw a scanline.
+    /// The fetcher progresses one state every other t-cycle.
     pub fn tick_fetcher(&mut self) {
         if self.mode_dots % 2 != 0 {
             return;
         }
 
-        if self.mode_dots > 160 {
+        if self.mode_dots > WINDOW_WIDTH as u32 {
             return;
         }
 
@@ -94,6 +104,8 @@ impl Ppu {
             self.window_drawn_this_scanline = true;
         }
 
+        // The two tilemap addresses can be accessed both in background mode and in window mode.
+        // Window and background mode each have a bit that determines which tilemap they will use.
         let tilemap_base_addr = if !self.fetcher.drawing_window && bg_tile_map
             || self.fetcher.drawing_window && window_tile_map
         {
@@ -102,6 +114,11 @@ impl Ppu {
             TILEMAP_1_ADDR
         };
 
+        // WX is subtracted from LX because LX = WX (accounting for the offset of 7) should grab
+        // the leftmost window tile from memory. LX = WX + 1 should grab the next, etc.
+        // WY works in the same way, as the WY counter is externally keeping track of the window
+        // tile's current y-position in memory. wy_counter = 0 will render the topmost window tile,
+        // wy_counter = 1 will render the next, etc.
         (self.fetcher.x, self.fetcher.y) = if self.fetcher.drawing_window {
             let wx = self.read_byte(WX_ADDR).wrapping_sub(7);
             let wy = self.wy_counter;
@@ -151,15 +168,15 @@ impl Ppu {
             [0; 8]
         };
 
-        if row > 143 {
-            // println!("Warning: ly == {} during pixel draw mode", row);
-            return;
-        }
         for (i, pixel) in tile_row.iter().enumerate() {
             self.display[row][col + i] = *pixel;
         }
     }
 
+    /// WX = 7 starts rendering the window at the-left of the screen, so WX = 0 is one tile
+    /// offscreen to the left. LX = 0, on the other hand, starts at the left of the screen as you
+    /// would expect. This means that any time you compare the two, you need to either add 7 to LX
+    /// or subtract 7 from WX to ensure that they are both measured from the same point.
     fn update_wx(&mut self) {
         let wx = self.read_byte(WX_ADDR);
         if (self.lx) == wx.wrapping_sub(7) {

@@ -1,4 +1,4 @@
-use crate::ppu::{GbBackground, GbDisplay};
+use crate::ppu::GbDisplay;
 
 use sdl2::{
     EventPump, event::Event, keyboard::Scancode, pixels::Color, rect::Rect, render::Canvas,
