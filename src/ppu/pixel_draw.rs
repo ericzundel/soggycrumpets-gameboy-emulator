@@ -138,7 +138,7 @@ impl Ppu {
 
         let tile_index = self.read_byte(tilemap_addr);
 
-        self.fetcher.tile_addr = self.get_tile_start_addr(tile_index);
+        self.fetcher.tile_addr = self.get_tile_start_addr(tile_index, false);
     }
 
     fn fetcher_get_tile_data(&mut self, high: bool) {

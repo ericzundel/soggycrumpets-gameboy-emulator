@@ -52,7 +52,7 @@ fn run_rom(path: &str) {
     let render_timer_period = Duration::from_secs_f64(1.0 / 60.0);
     let mut last_render_time = Instant::now();
 
-    // todo! This loop munches up CPU
+    // TODO: This loop munches up CPU
     // One loop represents one t-cycle
     while ui.running {
 

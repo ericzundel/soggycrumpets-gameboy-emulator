@@ -37,10 +37,10 @@ pub fn get_tile_row(byte1: u8, byte2: u8) -> TileRow {
 
 impl Ppu {
     // The way that they are indexed depends on a register flag.
-    pub fn get_tile_start_addr(&self, index: u8) -> u16 {
-        let signed_addressing_mode = !self.get_lcdc_flag(BG_AND_WINDOW_TILES_BIT);
-        // The base pointer is different between the two addressing modes
-        let bp: u16 = if signed_addressing_mode {
+    pub fn get_tile_start_addr(&self, index: u8, is_object: bool) -> u16 {
+        let signed_addressing_mode = is_object || !self.get_lcdc_flag(BG_AND_WINDOW_TILES_BIT);
+        
+        let base_pointer: u16 = if signed_addressing_mode {
             SIGNED_ADDRESSING_BASE_POINTER
         } else {
             UNSIGNED_ADDRESSING_BASE_POINTER
@@ -50,11 +50,11 @@ impl Ppu {
             let index_signed = index as i8;
             // Unsigned ints are upcasted before doing signed operations, to prevent data loss
             let address_offset = (index_signed as i16).wrapping_mul(TILE_SIZE_IN_BYTES as i16);
-            let address = (bp as i32).wrapping_add(address_offset as i32);
+            let address = (base_pointer as i32).wrapping_add(address_offset as i32);
             address as u16
         } else {
             let address_offset = (index as u16).wrapping_mul(TILE_SIZE_IN_BYTES as u16);
-            bp.wrapping_add(address_offset)
+            base_pointer.wrapping_add(address_offset)
         }
     }
 }

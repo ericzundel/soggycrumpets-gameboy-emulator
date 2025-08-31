@@ -130,7 +130,7 @@ impl Cpu {
         self.ime_pending = true;
     }
 
-    // todo!
+    // TODO
     pub fn stop(&mut self) {}
 
     pub fn halt(&mut self) {

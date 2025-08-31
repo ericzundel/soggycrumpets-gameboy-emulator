@@ -1,6 +1,7 @@
-mod fetcher;
+mod pixel_draw;
 mod state_machine;
 mod tiles;
+mod oam_scan;
 
 // The startup of the PPU is a bit buggy right now. It takes a cycle for
 // everything to sync up properly
@@ -29,11 +30,12 @@ use crate::{
     mmu::{self, memmap::*},
     util::{get_bit, set_bit},
 };
-use fetcher::Fetcher;
+use pixel_draw::Fetcher;
 use mmu::Mmu;
 use std::{cell::RefCell, rc::Rc};
 
 pub type GbDisplay = [[u8; 160]; 144];
+pub type ObjectDisplay = [[Option<u8>; 160]; 144];
 
 #[repr(u8)]
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -50,10 +52,12 @@ pub struct Ppu {
     frame_complete: bool,
 
     pub display: GbDisplay,
+    pub object_display: ObjectDisplay,
 
     fetcher: Fetcher,
 
     lx: u8,
+    ly: u8,
 
     wy_triggered: bool,
     wy_counter: u8,
@@ -63,7 +67,6 @@ pub struct Ppu {
     scanline_dots: u32,
     mode_dots: u32,
 
-    ly: u8,
     prev_stat_interrupt_signal: bool,
 }
 
@@ -75,6 +78,7 @@ impl Ppu {
             frame_complete: false,
 
             display: [[0; 160]; 144],
+            object_display: [[Some(0); 160]; 144],
 
             fetcher: Fetcher::new(),
 
@@ -147,7 +151,7 @@ impl Ppu {
     }
 
     // Check if the new scanline is in a window
-    /// WY is the y position at which a window beings.
+    /// WY is the y position at which a window begins.
     fn update_wy(&mut self) {
         let wy = self.read_byte(WY_ADDR);
 
@@ -196,7 +200,6 @@ impl Ppu {
     }
 
     pub fn get_mode(&mut self) -> PpuMode {
-        // The mode is represented by the rightmost two bits of the LCDC register.
         let byte = self.read_byte(STAT_ADDR);
         let mode_number = byte & 0b_0000_0011;
 
@@ -210,7 +213,6 @@ impl Ppu {
     }
 
     pub fn set_mode(&mut self, mode: PpuMode) {
-        // Only the rightmost two bits should be touched
         let mode_number = mode as u8;
         let mut byte = self.read_byte(STAT_ADDR);
         byte &= 0b_1111_1100;

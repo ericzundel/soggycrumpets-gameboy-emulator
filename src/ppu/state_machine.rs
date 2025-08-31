@@ -2,11 +2,12 @@ use crate::mmu::memmap::VBLANK_INTERRUPT_BIT;
 
 use super::{
     DISPLAY_HEIGHT, DOTS_PER_SCANLINE, HBLANK_MAX_DOTS, OAM_SCAN_DOTS, PIXEL_DRAW_MIN_DOTS, Ppu,
-    PpuMode, VBLANK_DOTS, fetcher::FetcherState,
+    PpuMode, VBLANK_DOTS, pixel_draw::FetcherState,
 };
 
 impl Ppu {
     pub fn oam_scan(&mut self) {
+        self.tick_oam_scan();
         // OAMSCAN -> PIXELDRAW
         if OAM_SCAN_DOTS == self.mode_dots {
             self.set_mode(PpuMode::PixelDraw);
@@ -16,8 +17,8 @@ impl Ppu {
     }
 
     pub fn pixel_draw(&mut self) {
-        // PIXELDRAW -> HBLANK
         self.tick_fetcher();
+        // PIXELDRAW -> HBLANK
         if PIXEL_DRAW_MIN_DOTS == self.mode_dots {
             self.set_mode(PpuMode::HBlank);
 
@@ -52,8 +53,8 @@ impl Ppu {
     pub fn vblank(&mut self) {
         if self.scanline_dots == DOTS_PER_SCANLINE {
             self.inc_ly();
+            // VBLANK -> OAMSCAN
             if VBLANK_DOTS == self.mode_dots {
-                // println!("VBLANK -> OAM");
                 self.set_mode(PpuMode::OamScan);
                 self.mmu.borrow_mut().oam_lock = true;
                 self.reset_ly();
