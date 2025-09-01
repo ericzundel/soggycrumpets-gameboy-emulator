@@ -1,4 +1,4 @@
-use crate::ppu::tiles::{TILE_WIDTH_IN_PIXELS, get_tile_row};
+use crate::ppu::tiles::{TILE_HEIGHT_IN_PIXELS, TILE_WIDTH_IN_PIXELS, get_tile_row};
 use crate::ppu::{DISPLAY_HEIGHT, DISPLAY_WIDTH};
 use crate::util::get_bit;
 use crate::{Ppu, mmu::memmap::OAM_START};
@@ -45,27 +45,35 @@ impl Ppu {
         if (self.ly as i32) >= (y_position as i32 - SCREEN_BUFFER_Y as i32)
             && (self.ly as i32) < (y_position as i32 - SCREEN_BUFFER_Y as i32 + object_height)
         {
-            let tile_row_index = self.ly - (y_position - SCREEN_BUFFER_Y as u8);
+            let mut tile_row_index = self.ly - (y_position - SCREEN_BUFFER_Y as u8);
+            if flags.yflip {
+                tile_row_index = (TILE_HEIGHT_IN_PIXELS - 1) as u8 - tile_row_index;
+            }
 
             let tile_row_high_byte = self.get_tile_row_high_byte(tile_start_addr, tile_row_index);
             let tile_row_low_byte = self.get_tile_row_low_byte(tile_start_addr, tile_row_index);
-            let object_row = get_tile_row(tile_row_high_byte, tile_row_low_byte);
+            let mut object_row = get_tile_row(tile_row_low_byte, tile_row_high_byte);
+
+            if flags.xflip {
+                object_row.reverse();
+            }
+
             self.write_row_to_display(&object_row, x_position);
         }
 
-        //   println!(
-        //                 "{}: {:0x}-{:0x} | x: {}, y: {}, idx: {}, tile addr: 0x{:0x} priority: {}, xflip: {}, yflip: {}",
-        //                 object_number,
-        //                 object_addr,
-        //                 object_addr + BYTES_PER_OBJECT as u16 - 1,
-        //                 x_position,
-        //                 y_position,
-        //                 tile_index,
-        //                 tile_start_addr,
-        //                 flags.priority,
-        //                 flags.xflip,
-        //                 flags.yflip,
-        //             );
+        // println!(
+        //     "{}: {:0x}-{:0x} | x: {}, y: {}, idx: {}, tile addr: 0x{:0x} priority: {}, xflip: {}, yflip: {}",
+        //     object_number,
+        //     object_addr,
+        //     object_addr + OBJECT_SIZE_BYTES as u16 - 1,
+        //     x_position,
+        //     y_position,
+        //     tile_index,
+        //     tile_start_addr,
+        //     flags.priority,
+        //     flags.xflip,
+        //     flags.yflip,
+        // );
     }
 
     fn get_oam_bytes(&mut self, addr: &u16) -> (u8, u8, u8, ObjectFlags) {
@@ -75,8 +83,8 @@ impl Ppu {
         let flags_byte = self.read_byte(*addr + 3);
         let flags = ObjectFlags {
             priority: get_bit(flags_byte, 7),
-            xflip: get_bit(flags_byte, 6),
-            yflip: get_bit(flags_byte, 5),
+            yflip: get_bit(flags_byte, 6),
+            xflip: get_bit(flags_byte, 5),
         };
 
         (y_position, x_position, tile_index, flags)

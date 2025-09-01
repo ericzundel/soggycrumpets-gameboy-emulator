@@ -127,7 +127,6 @@ impl Ppu {
         self.frame_complete = false;
 
         if frame_complete {
-            // dbg!(self.oam_data.object_display);
             self.overlay_object_display();
             self.clear_object_display();
         }
@@ -271,7 +270,10 @@ impl Ppu {
         for (y, row) in self.display.iter_mut().enumerate() {
             for (x, pixel) in row.iter_mut().enumerate() {
                 if let Some(object_pixel) = self.oam_data.object_display[y][x] {
-                    *pixel = object_pixel;
+                    if object_pixel != 0 {
+                        *pixel = object_pixel;
+                        
+                    }
                 }
             }
         }
