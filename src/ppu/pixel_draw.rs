@@ -66,7 +66,7 @@ impl Ppu {
             return;
         }
 
-        if self.mode_dots > WINDOW_WIDTH as u32 {
+        if self.mode_dots > DISPLAY_WIDTH as u32 {
             return;
         }
 
@@ -146,10 +146,9 @@ impl Ppu {
         let row_index = self.fetcher.y % TILE_HEIGHT_IN_PIXELS as u8;
 
         if high {
-            self.fetcher.tile_data_high =
-                self.read_byte(tile_start_addr + (row_index as u16 * 2) + 1);
+            self.fetcher.tile_data_high = self.get_tile_row_high_byte(tile_start_addr, row_index);
         } else {
-            self.fetcher.tile_data_low = self.read_byte(tile_start_addr + (row_index as u16 * 2));
+            self.fetcher.tile_data_low = self.get_tile_row_low_byte(tile_start_addr, row_index);
         }
     }
 

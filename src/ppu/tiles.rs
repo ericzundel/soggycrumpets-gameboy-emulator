@@ -38,8 +38,8 @@ pub fn get_tile_row(byte1: u8, byte2: u8) -> TileRow {
 impl Ppu {
     // The way that they are indexed depends on a register flag.
     pub fn get_tile_start_addr(&self, index: u8, is_object: bool) -> u16 {
-        let signed_addressing_mode = is_object || !self.get_lcdc_flag(BG_AND_WINDOW_TILES_BIT);
-        
+        let signed_addressing_mode = !is_object && !self.get_lcdc_flag(BG_AND_WINDOW_TILES_BIT);
+
         let base_pointer: u16 = if signed_addressing_mode {
             SIGNED_ADDRESSING_BASE_POINTER
         } else {
@@ -56,5 +56,13 @@ impl Ppu {
             let address_offset = (index as u16).wrapping_mul(TILE_SIZE_IN_BYTES as u16);
             base_pointer.wrapping_add(address_offset)
         }
+    }
+
+    pub fn get_tile_row_high_byte(&mut self, tile_start_addr: u16, row_index: u8) -> u8 {
+        self.read_byte(tile_start_addr + (row_index as u16 * 2) + 1)
+    }
+
+    pub fn get_tile_row_low_byte(&mut self, tile_start_addr: u16, row_index: u8) -> u8 {
+        self.read_byte(tile_start_addr + (row_index as u16 * 2))
     }
 }

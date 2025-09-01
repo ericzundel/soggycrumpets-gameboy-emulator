@@ -36,7 +36,7 @@ impl Ppu {
     pub fn hblank(&mut self) {
         if HBLANK_MAX_DOTS == self.mode_dots {
             // HBLANK -> VBLANK
-            if self.ly == DISPLAY_HEIGHT - 1 {
+            if self.ly == DISPLAY_HEIGHT as u8 - 1 {
                 self.set_mode(PpuMode::VBlank);
                 self.mmu
                     .borrow_mut()

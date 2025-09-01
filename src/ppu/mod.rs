@@ -1,7 +1,7 @@
+mod oam_scan;
 mod pixel_draw;
 mod state_machine;
 mod tiles;
-mod oam_scan;
 
 // The startup of the PPU is a bit buggy right now. It takes a cycle for
 // everything to sync up properly
@@ -23,19 +23,19 @@ const VBLANK_MODE_NUMBER: u8 = 1;
 const OAM_SCAN_MODE_NUMBER: u8 = 2;
 const PIXEL_DRAW_MODE_NUMBER: u8 = 3;
 
-const WINDOW_WIDTH: u8 = 160;
-const DISPLAY_HEIGHT: u8 = 144;
+const DISPLAY_WIDTH: usize = 160;
+const DISPLAY_HEIGHT: usize = 144;
 
 use crate::{
     mmu::{self, memmap::*},
+    ppu::oam_scan::OamData,
     util::{get_bit, set_bit},
 };
-use pixel_draw::Fetcher;
 use mmu::Mmu;
+use pixel_draw::Fetcher;
 use std::{cell::RefCell, rc::Rc};
 
-pub type GbDisplay = [[u8; 160]; 144];
-pub type ObjectDisplay = [[Option<u8>; 160]; 144];
+pub type GbDisplay = [[u8; DISPLAY_WIDTH]; DISPLAY_HEIGHT];
 
 #[repr(u8)]
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -52,7 +52,7 @@ pub struct Ppu {
     frame_complete: bool,
 
     pub display: GbDisplay,
-    pub object_display: ObjectDisplay,
+    oam_data: OamData,
 
     fetcher: Fetcher,
 
@@ -78,7 +78,7 @@ impl Ppu {
             frame_complete: false,
 
             display: [[0; 160]; 144],
-            object_display: [[Some(0); 160]; 144],
+            oam_data: OamData::new(),
 
             fetcher: Fetcher::new(),
 
@@ -125,6 +125,13 @@ impl Ppu {
 
         let frame_complete = self.frame_complete;
         self.frame_complete = false;
+
+        if frame_complete {
+            // dbg!(self.oam_data.object_display);
+            self.overlay_object_display();
+            self.clear_object_display();
+        }
+
         frame_complete
     }
 
@@ -258,5 +265,23 @@ impl Ppu {
         let mut byte = self.read_byte(LCDC_ADDR);
         set_bit(&mut byte, bit, set);
         self.mmu.borrow_mut().write_byte(LCDC_ADDR, byte);
+    }
+
+    fn overlay_object_display(&mut self) {
+        for (y, row) in self.display.iter_mut().enumerate() {
+            for (x, pixel) in row.iter_mut().enumerate() {
+                if let Some(object_pixel) = self.oam_data.object_display[y][x] {
+                    *pixel = object_pixel;
+                }
+            }
+        }
+    }
+
+    fn clear_object_display(&mut self) {
+        for row in self.oam_data.object_display.iter_mut() {
+            for pixel in row.iter_mut() {
+                *pixel = None;
+            }
+        }
     }
 }
