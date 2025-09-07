@@ -2,14 +2,14 @@
 //! The Gameboy has 64kB of memory, but it cannot be sufficiently represented
 //! by a single 64kB array. This is primarily due to the fact that the Gameboy supports
 //! ROM bank switching, which changes the part of the game's ROM that is visible in memory.
-//! 
+//!
 //! Different regions of memory are treated in different ways by different pieces of hardware on
 //! the Gameboy. For example, the CPU is restricted from accessing VRAM and OAM during certain
 //! timing windows. Certain registers, such as DIV and TIMA, incur side effects when written to.
- 
+
+mod dma;
 pub mod memmap;
 mod readwrite;
-mod dma;
 mod timers;
 
 use dma::Dma;
@@ -17,7 +17,7 @@ use memmap::*;
 use std::{cell::RefCell, rc::Rc};
 use timers::Timers;
 
-use crate::util::set_bit;
+use crate::util::{get_bit, set_bit};
 
 pub struct Mmu {
     dma: Dma,
@@ -33,6 +33,8 @@ pub struct Mmu {
     io: [u8; IO_SIZE],
     hram: [u8; HRAM_SIZE],
     ie: u8,
+
+    pub buttons: Buttons,
 
     pub vram_lock: bool,
     pub oam_lock: bool,
@@ -57,6 +59,8 @@ impl Mmu {
             hram: [0; HRAM_SIZE],
             ie: 0,
 
+            buttons: Buttons::new(),
+
             vram_lock: false,
             oam_lock: false,
         };
@@ -64,7 +68,7 @@ impl Mmu {
         Rc::new(RefCell::new(mmu))
     }
 
-    // todo! Support bigger ROMs
+    // TODO: Support bigger ROMs
     pub fn load_rom(&mut self, path: &str) -> bool {
         let rom = match std::fs::read(path) {
             Ok(result) => result,
@@ -76,9 +80,35 @@ impl Mmu {
 
         true
     }
-
-   
 }
+
+pub struct Buttons {
+    pub start: bool,
+    pub select: bool,
+    pub up: bool,
+    pub down: bool,
+    pub left: bool,
+    pub right: bool,
+    pub a: bool,
+    pub b: bool, 
+}
+
+impl Buttons {
+    fn new() -> Buttons {
+        Buttons {
+            start: true,
+            select: true,
+            up: true,
+            down: true,
+            left: true,
+            right: true,
+            a: true,
+            b: true,
+        }
+    }
+}
+
+
 
 mod debug {
     use super::*;

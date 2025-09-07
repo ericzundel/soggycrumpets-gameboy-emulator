@@ -2,8 +2,8 @@
 // #![allow(unused)]
 
 mod cli;
-mod debugger;
 mod cpu;
+mod debugger;
 mod mmu;
 mod ppu;
 mod ui;
@@ -11,17 +11,20 @@ mod util;
 
 use cli::{Command, parse_cli_inputs};
 
-use cpu::{registers::R8, Cpu};
+use cpu::registers::R16;
+use cpu::{Cpu, registers::R8};
 use debugger::run_debug;
 use mmu::{Mmu, memmap::*};
 use ppu::Ppu;
+use sdl2::keyboard::Scancode;
 use std::{
     cell::RefCell,
     rc::Rc,
     time::{Duration, Instant},
 };
 use ui::UserInterface;
-use cpu::registers::R16;
+
+use crate::ui::Inputs;
 
 const SYSTEM_CLOCK_FREQUENCY: f64 = (1 << 22) as f64; // Hz
 const SYSTEM_CLOCK_PERIOD: f64 = 1.0 / SYSTEM_CLOCK_FREQUENCY; // Seconds
@@ -55,7 +58,6 @@ fn run_rom(path: &str) {
     // TODO: This loop munches up CPU
     // One loop represents one t-cycle
     while ui.running {
-
         cpu.tick();
         mmu.borrow_mut().tick_timers();
         mmu.borrow_mut().tick_dma();
@@ -65,6 +67,7 @@ fn run_rom(path: &str) {
 
         if last_render_time.elapsed() >= render_timer_period {
             ui.process_inputs();
+            update_joypad(&mut mmu.borrow_mut(), &ui.inputs);
             last_render_time = Instant::now();
         }
     }
@@ -133,6 +136,15 @@ fn emulate_boot(mmu: &Rc<RefCell<Mmu>>, cpu: &mut Cpu) {
     mmu.write_byte_override(WY_ADDR, 0x00);
     mmu.write_byte_override(WX_ADDR, 0x00);
     mmu.write_byte_override(IE_ADDR, 0x00);
+}
 
-
+fn update_joypad(mmu: &mut Mmu, inputs: &Inputs) {
+    mmu.buttons.start = inputs.key_down[Scancode::Num1 as usize];
+    mmu.buttons.select = inputs.key_down[Scancode::Num2 as usize];
+    mmu.buttons.up = inputs.key_down[Scancode::W as usize];
+    mmu.buttons.down = inputs.key_down[Scancode::S as usize];
+    mmu.buttons.left = inputs.key_down[Scancode::A as usize];
+    mmu.buttons.right = inputs.key_down[Scancode::D as usize];
+    mmu.buttons.a = inputs.key_down[Scancode::Period as usize];
+    mmu.buttons.b = inputs.key_down[Scancode::Comma as usize];
 }

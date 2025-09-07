@@ -36,7 +36,7 @@ impl Mmu {
             M::Restricted => self.restricted_memory[index],
             M::Io => match addr {
                 STAT_ADDR => self.io[index] | 0b_1000_0000, // Upper bit is unused
-                P1_ADDR => 0x0f,
+                P1_ADDR => self.read_byte_p1(),
                 IF_ADDR => self.io[index] | 0b_1110_0000, // Upper 3 bits are unused
                 _ => self.io[index],
             },
@@ -85,6 +85,7 @@ impl Mmu {
                 LY_ADDR => (),                                     // Read-only
                 STAT_ADDR => self.io[index] = byte & 0b_1111_1000, // Bottom 3 bits are read-only
                 IF_ADDR => self.io[index] = byte | 0b_1110_0000,   // Top 3 bits are always 1
+                P1_ADDR => self.write_byte_p1(byte),
                 _ => self.io[index] = byte,
             },
             M::Hram => self.hram[index] = byte,
@@ -158,5 +159,42 @@ impl Mmu {
         let mut byte = self.read_byte(IF_ADDR);
         set_bit(&mut byte, interrupt_bit, true);
         self.write_byte(IF_ADDR, byte);
+    }
+
+    /// The Gameboy uses 2 selector bits, which allows it to map 8 buttons to only 4 bits
+    fn read_byte_p1(&self) -> u8 {
+        let mut byte = self.read_byte_override(P1_ADDR);
+
+        let select_buttons = get_bit(byte, SELECT_BUTTONS_BIT as u8);
+        let select_dpad = get_bit(byte, SELECT_DPAD_BIT as u8);
+
+        if !select_buttons {
+            set_bit(&mut byte, START_DOWN_BIT as u8, !self.buttons.start);
+            set_bit(&mut byte, SELECT_UP_BIT as u8, !self.buttons.select);
+            set_bit(&mut byte, B_LEFT_BIT as u8, !self.buttons.b);
+            set_bit(&mut byte, A_RIGHT_BIT as u8, !self.buttons.a);
+        } else if !select_dpad {
+            set_bit(&mut byte, START_DOWN_BIT as u8, !self.buttons.down);
+            set_bit(&mut byte, SELECT_UP_BIT as u8, !self.buttons.up);
+            set_bit(&mut byte, B_LEFT_BIT as u8, !self.buttons.left);
+            set_bit(&mut byte, A_RIGHT_BIT as u8, !self.buttons.right);
+        } else {
+            byte |= 0x0F;
+        }
+
+        byte
+    }
+
+    // Only the select bits, 4 and 5, are writable
+    fn write_byte_p1(&mut self, mut byte_to_write: u8) {
+        let mut byte = self.read_byte_override(P1_ADDR);
+
+        let mask = 0b_1100_1111;
+
+        byte &= mask;
+        byte_to_write &= !mask;
+        byte |= byte_to_write;
+
+        self.write_byte_override(P1_ADDR, byte);
     }
 }

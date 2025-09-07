@@ -60,6 +60,13 @@ pub const IE_ADDR: u16 = 0xFFFF;
 // ----- Register Addresses -----
 // Input
 pub const P1_ADDR: u16 = 0xFF00;
+// Bits within P1
+pub const SELECT_BUTTONS_BIT: i32 = 5;
+pub const SELECT_DPAD_BIT: i32 = 4;
+pub const START_DOWN_BIT: i32 = 3;
+pub const SELECT_UP_BIT: i32 = 2;
+pub const B_LEFT_BIT: i32 = 1;
+pub const A_RIGHT_BIT: i32 = 0;
 
 // Timer
 pub const DIV_ADDR: u16 = 0xFF04;
