@@ -5,6 +5,11 @@ use crate::{Ppu, mmu::memmap::OAM_START};
 
 // OAM scan takes two dots/t-cycles per object, scanning 40 objects in total.
 
+// TODO:
+// - Implement 8x16 object mode
+// - Implement priority
+// - Fix nose in DMG acid
+
 const OBJECT_SIZE_BYTES: u32 = 4;
 const SCREEN_BUFFER_X: u32 = 8;
 const SCREEN_BUFFER_Y: u32 = 16;
@@ -35,7 +40,7 @@ impl Ppu {
         }
 
         let object_number = (self.mode_dots / 2) - 1;
-        let object_addr = self.get_oam_addr(&object_number);
+        let object_addr = OAM_START + ((object_number) * OBJECT_SIZE_BYTES) as u16;
         let (y_position, x_position, tile_index, flags) = self.get_oam_bytes(&object_addr);
         let tile_start_addr = self.get_tile_start_addr(tile_index, true);
 
@@ -88,10 +93,6 @@ impl Ppu {
         };
 
         (y_position, x_position, tile_index, flags)
-    }
-
-    fn get_oam_addr(&mut self, object_number: &u32) -> u16 {
-        OAM_START + ((object_number) * OBJECT_SIZE_BYTES) as u16
     }
 
     fn write_row_to_display(&mut self, row: &[u8; TILE_WIDTH_IN_PIXELS], x_position: u8) {

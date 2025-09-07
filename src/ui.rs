@@ -1,3 +1,5 @@
+use std::{collections::HashMap, hash::Hash, iter::Scan};
+
 use crate::ppu::GbDisplay;
 
 use sdl2::{
@@ -9,70 +11,27 @@ pub const WINDOW_WIDTH: usize = 160;
 pub const WINDOW_HEIGHT: usize = 144;
 pub const WINDOW_SCALE_FACTOR: usize = 2;
 
-#[derive(Copy, Clone, Debug)]
-pub struct Inputs {
-    pub w: bool,
-    pub a: bool,
-    pub s: bool,
-    pub d: bool,
-    pub m: bool,
-    pub n: bool,
+const SCANCODE_MAX_VALUE: usize = 512;
 
-    pub g: bool,
-    pub r: bool,
-    pub p: bool,
+#[derive(Clone, Debug)]
+pub struct Inputs {
+    pub key_down: [bool; SCANCODE_MAX_VALUE],
+    pub key_was_down: [bool; SCANCODE_MAX_VALUE],
+    pub keypress_unique: [bool; SCANCODE_MAX_VALUE],
 }
 
 impl Inputs {
     fn new() -> Self {
         Inputs {
-            w: false,
-            a: false,
-            s: false,
-            d: false,
-            m: false,
-            n: false,
-
-            g: false,
-            r: false,
-            p: false,
+            key_down: [false; SCANCODE_MAX_VALUE],
+            key_was_down: [false; SCANCODE_MAX_VALUE],
+            keypress_unique: [false; SCANCODE_MAX_VALUE],
         }
-    }
-
-    // Returns false if the key has not been implemented
-    fn get(&self, scancode: Scancode) -> bool {
-        match scancode {
-            Scancode::W => self.w,
-            Scancode::A => self.a,
-            Scancode::S => self.s,
-            Scancode::D => self.d,
-            Scancode::M => self.m,
-            Scancode::N => self.n,
-
-            Scancode::G => self.g,
-            Scancode::R => self.r,
-            Scancode::P => self.p,
-            _ => false,
-        }
-    }
-
-    fn set(&mut self, scancode: Scancode, set: bool) {
-        match scancode {
-            Scancode::A => self.a = set,
-            Scancode::G => self.g = set,
-            Scancode::M => self.m = set,
-            Scancode::N => self.n = set,
-            Scancode::R => self.r = set,
-            Scancode::P => self.p = set,
-            _ => (),
-        };
     }
 }
 
 pub struct UserInterface {
-    pub inputs_down: Inputs,
-    inputs_was_down: Inputs,
-    pub inputs_unique: Inputs,
+    pub inputs: Inputs,
 
     canvas: Canvas<Window>,
     event_pump: EventPump,
@@ -85,9 +44,7 @@ impl UserInterface {
         UserInterface {
             canvas,
             event_pump,
-            inputs_down: Inputs::new(),
-            inputs_was_down: Inputs::new(),
-            inputs_unique: Inputs::new(),
+            inputs: Inputs::new(),
             running: true,
         }
     }
@@ -144,42 +101,26 @@ impl UserInterface {
     }
 
     pub fn process_inputs(&mut self) {
-        // Update previous inputs
-        self.inputs_was_down = self.inputs_down;
-
-        // Update inputs that are currently down
         for event in self.event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } => self.running = false,
                 Event::KeyDown {
                     scancode: Some(scancode),
                     ..
-                } => self.inputs_down.set(scancode, true),
+                } => self.inputs.key_down[scancode as usize] = true,
                 Event::KeyUp {
                     scancode: Some(scancode),
                     ..
-                } => self.inputs_down.set(scancode, false),
+                } => self.inputs.key_down[scancode as usize] = false,
                 _ => {}
             }
         }
 
-        // Update unique inputs
-        // TODO: Inplement a generic unique input checking system (Loop through all scancodes)
-        for scancode in [
-            Scancode::W,
-            Scancode::A,
-            Scancode::S,
-            Scancode::D,
-            Scancode::M,
-            Scancode::N,
-            Scancode::G,
-            Scancode::R,
-            Scancode::P,
-        ] {
-            let a_down = self.inputs_down.get(scancode);
-            let a_was_down = self.inputs_was_down.get(scancode);
-            let a_unique = a_down && !a_was_down;
-            self.inputs_unique.set(scancode, a_unique);
+        for i in 0..self.inputs.key_down.len() {
+            self.inputs.keypress_unique[i] =
+                self.inputs.key_down[i] && !self.inputs.key_was_down[i];
+
+            self.inputs.key_was_down[i] = self.inputs.key_down[i];
         }
     }
 }
