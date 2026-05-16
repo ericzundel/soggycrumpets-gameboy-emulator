@@ -24,7 +24,7 @@ pub fn run_debug(path: &str) {
         return;
     }
 
-    emulate_boot(&mmu, &mut cpu);
+    initialize_memory(&mmu, &mut cpu);
 
     let mut ui = UserInterface::new();
     let mut running = true;

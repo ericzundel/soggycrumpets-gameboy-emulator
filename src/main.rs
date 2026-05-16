@@ -28,7 +28,8 @@ use crate::ui::Inputs;
 
 const SYSTEM_CLOCK_FREQUENCY: f64 = (1 << 22) as f64; // Hz
 const SYSTEM_CLOCK_PERIOD: f64 = 1.0 / SYSTEM_CLOCK_FREQUENCY; // Seconds
-pub const M_CYCLE_DURATION: u32 = 4;
+pub const M_CYCLE_DURATION: u32 = 4; // t-cycles
+const GAMEBOY_FRAMERATE: f64 = 1.0 / 59.7275; // Seconds
 
 fn main() {
     let input = parse_cli_inputs();
@@ -48,27 +49,36 @@ fn run_rom(path: &str) {
         return;
     }
 
-    emulate_boot(&mmu, &mut cpu);
+    initialize_memory(&mmu, &mut cpu);
 
     let mut ui = UserInterface::new();
 
-    let render_timer_period = Duration::from_secs_f64(1.0 / 60.0);
+    let framerate = Duration::from_secs_f64(GAMEBOY_FRAMERATE);
     let mut last_render_time = Instant::now();
+    let mut frame_ready: bool = false;
+    let mut time_elapsed: Duration;
 
-    // TODO: This loop munches up CPU
     // One loop represents one t-cycle
     while ui.running {
-        cpu.tick();
-        mmu.borrow_mut().tick_timers();
-        mmu.borrow_mut().tick_dma();
-        if ppu.tick() {
-            ui.render_display(&ppu.display);
+
+        if !frame_ready {
+            cpu.tick();
+            mmu.borrow_mut().tick_timers();
+            mmu.borrow_mut().tick_dma();
+
+            frame_ready = ppu.tick();
         }
 
-        if last_render_time.elapsed() >= render_timer_period {
+        time_elapsed = last_render_time.elapsed();
+        if frame_ready && time_elapsed >= framerate {
+            frame_ready = false;
+
+            last_render_time += framerate;
+
+            ui.render_display(&ppu.display);
+
             ui.process_inputs();
             update_joypad(&mut mmu.borrow_mut(), &ui.inputs);
-            last_render_time = Instant::now();
         }
     }
 }
@@ -85,7 +95,7 @@ fn create_gameboy_components() -> (Rc<RefCell<Mmu>>, Cpu, Ppu) {
 /// replicates the post-boot state, rather than requiring them to source the bootrom.
 /// [Pan Docs](https://gbdev.io/pandocs/Power_Up_Sequence.html?highlight=power%20up#power-up-sequence)
 /// contains all of the necessary information to do this.
-fn emulate_boot(mmu: &Rc<RefCell<Mmu>>, cpu: &mut Cpu) {
+fn initialize_memory(mmu: &Rc<RefCell<Mmu>>, cpu: &mut Cpu) {
     cpu.reg.set(R8::A, 0x01);
     // The H and C flags in the F register depend on the cartridge header checksum.
     // They are both true if checksum != 0x00, otherwise they are both false.
