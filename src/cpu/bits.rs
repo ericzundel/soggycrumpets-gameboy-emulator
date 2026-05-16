@@ -26,17 +26,17 @@ impl Cpu {
         self.reg.set(r8, result);
     }
 
-    pub fn bitshift_at_hl(&mut self, op: BitshiftOp) {
+    pub fn bitshift_at_hl(&mut self, op: BitshiftOp, mmu: &mut Mmu) {
 
         match self.instruction_m_cycles_remaining {
             // Fetch
             3 => (),
             // Read
-            2 => self.byte_buf = self.read_at_hl(),
+            2 => self.byte_buf = self.read_at_hl(mmu),
             // Write
             1 => {
                 let result = self.bitshift_u8(op, self.byte_buf);
-                self.write_at_hl(result);
+                self.write_at_hl(result, mmu);
             }
             _ => unreachable!(),
         }
@@ -49,7 +49,7 @@ impl Cpu {
         self.reg.set(r8, result);
     }
 
-    pub fn bitflag_u3_at_hl(&mut self, op: BitflagOp, bit: u8) {
+    pub fn bitflag_u3_at_hl(&mut self, op: BitflagOp, bit: u8, mmu: &mut Mmu) {
 
         match op {
             BitflagOp::Bit  => match self.instruction_m_cycles_remaining {
@@ -57,7 +57,7 @@ impl Cpu {
             2 => (),
             // Read
             1 => {
-                let byte = self.read_at_hl();
+                let byte = self.read_at_hl(mmu);
                 self.bitflag_u3_u8(op, bit, byte);
             }
             _ => unreachable!(),
@@ -66,11 +66,11 @@ impl Cpu {
                 // Fetch
                 3 => (),
                 // Read
-                2 => self.byte_buf = self.read_at_hl(),
+                2 => self.byte_buf = self.read_at_hl(mmu),
                 // Write
                 1 => {
                     let result = self.bitflag_u3_u8(op, bit, self.byte_buf);
-                    self.write_at_hl(result);
+                    self.write_at_hl(result, mmu);
                 }
                 _ => unreachable!(),
             }

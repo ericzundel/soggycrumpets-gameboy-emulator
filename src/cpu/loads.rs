@@ -1,6 +1,6 @@
 use super::*;
 impl Cpu {
-    pub fn push_r16(&mut self, r16: R16) {
+    pub fn push_r16(&mut self, r16: R16, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Instruction decoding
             4 => (),
@@ -12,7 +12,7 @@ impl Cpu {
                 self.reg.set16(R16::SP, sp);
 
                 let high_byte = (self.reg.get16(r16) >> 8) as u8;
-                self.write_byte(sp, high_byte);
+                mmu.write_byte(sp, high_byte);
             }
             // Write the low byte to memory
             1 => {
@@ -21,20 +21,20 @@ impl Cpu {
                 self.reg.set16(R16::SP, sp);
 
                 let low_byte = self.reg.get16(r16) as u8;
-                self.write_byte(sp, low_byte);
+                mmu.write_byte(sp, low_byte);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn pop_r16(&mut self, r16: R16) {
+    pub fn pop_r16(&mut self, r16: R16, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Internal delay
             3 => (),
             // Read the low byte from memory
             2 => {
                 let sp = self.reg.get16(R16::SP);
-                let low_byte = self.read_byte(sp);
+                let low_byte = mmu.read_byte(sp);
 
                 self.reg.set16_low(r16, low_byte);
                 self.reg.set16(R16::SP, sp.wrapping_add(1));
@@ -42,7 +42,7 @@ impl Cpu {
             // Read the high byte from memory
             1 => {
                 let sp = self.reg.get16(R16::SP);
-                let high_byte = self.read_byte(sp);
+                let high_byte = mmu.read_byte(sp);
 
                 self.reg.set16_high(r16, high_byte);
                 self.reg.set16(R16::SP, sp.wrapping_add(1));
@@ -56,65 +56,65 @@ impl Cpu {
         self.reg.set(r1, byte);
     }
 
-    pub fn ld_r8_n8(&mut self, r8: R8) {
+    pub fn ld_r8_n8(&mut self, r8: R8, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             2 => (),
             // Read n8
             1 => {
-                let byte = self.fetch_byte();
+                let byte = self.fetch_byte(mmu);
                 self.reg.set(r8, byte);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn ld_r16_n16(&mut self, r16: R16) {
-        let word = self.fetch_word();
+    pub fn ld_r16_n16(&mut self, r16: R16, mmu: &mut Mmu) {
+        let word = self.fetch_word(mmu);
         self.reg.set16(r16, word);
     }
 
-    pub fn ld_at_hl_r8(&mut self, r8: R8) {
+    pub fn ld_at_hl_r8(&mut self, r8: R8, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             2 => (),
             // Write [HL]
             1 => {
                 let byte = self.reg.get(r8);
-                self.write_at_hl(byte);
+                self.write_at_hl(byte, mmu);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn ld_at_hl_n8(&mut self) {
+    pub fn ld_at_hl_n8(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             3 => (),
             // Read n8
-            2 => self.byte_buf = self.fetch_byte(),
+            2 => self.byte_buf = self.fetch_byte(mmu),
             // Write [HL]
             1 => {
-                self.write_at_hl(self.byte_buf);
+                self.write_at_hl(self.byte_buf, mmu);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn ld_r8_at_hl(&mut self, r8: R8) {
+    pub fn ld_r8_at_hl(&mut self, r8: R8, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             2 => (),
             // Read [HL]
             1 => {
-                let byte = self.read_at_hl();
+                let byte = self.read_at_hl(mmu);
                 self.reg.set(r8, byte);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn ld_at_r16_a(&mut self, r16: R16) {
+    pub fn ld_at_r16_a(&mut self, r16: R16, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             2 => (),
@@ -122,99 +122,99 @@ impl Cpu {
             1 => {
                 let addr = self.reg.get16(r16);
                 let byte = self.reg.get(R8::A);
-                self.write_byte(addr, byte);
+                mmu.write_byte(addr, byte);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn ld_a_at_r16(&mut self, r16: R16) {
+    pub fn ld_a_at_r16(&mut self, r16: R16, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             2 => (),
             // Read at r16
             1 => {
                 let addr = self.reg.get16(r16);
-                let byte = self.read_byte(addr);
+                let byte = mmu.read_byte(addr);
                 self.reg.set(R8::A, byte);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn ld_a_at_a16(&mut self) {
+    pub fn ld_a_at_a16(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             4 => (),
             // Read the lower byte
             3 => {
-                self.word_buf_low = self.fetch_byte();
+                self.word_buf_low = self.fetch_byte(mmu);
             }
             // Read the upper byte
-            2 => self.word_buf_high = self.fetch_byte(),
+            2 => self.word_buf_high = self.fetch_byte(mmu),
             // Load [a16] into A
             1 => {
                 let addr = self.get_word_buf();
-                let byte = self.read_byte(addr);
+                let byte = mmu.read_byte(addr);
                 self.reg.set(R8::A, byte);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn ld_at_a16_a(&mut self) {
+    pub fn ld_at_a16_a(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             4 => (),
             // Read the lower byte
             3 => {
-                self.word_buf_low = self.fetch_byte();
+                self.word_buf_low = self.fetch_byte(mmu);
             }
             // Read the upper byte
-            2 => self.word_buf_high = self.fetch_byte(),
+            2 => self.word_buf_high = self.fetch_byte(mmu),
             // Load A into [a16]
             1 => {
                 let addr = self.get_word_buf();
                 let byte = self.reg.get(R8::A);
-                self.write_byte(addr, byte);
+                mmu.write_byte(addr, byte);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn ldh_a_at_a8(&mut self) {
+    pub fn ldh_a_at_a8(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             3 => (),
             // Read a8
-            2 => self.byte_buf = self.fetch_byte(),
+            2 => self.byte_buf = self.fetch_byte(mmu),
             // Load [a8] into A
             1 => {
                 let addr = 0xFF00 + (self.byte_buf as u16);
-                let byte = self.read_byte(addr);
+                let byte = mmu.read_byte(addr);
                 self.reg.set(R8::A, byte);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn ldh_at_a8_a(&mut self) {
+    pub fn ldh_at_a8_a(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             3 => (),
             // Read a8
-            2 => self.byte_buf = self.fetch_byte(),
+            2 => self.byte_buf = self.fetch_byte(mmu),
             // Load A into [a8]
             1 => {
                 let ra = self.reg.get(R8::A);
                 let addr = 0xFF00 + (self.byte_buf as u16);
-                self.write_byte(addr, ra);
+                mmu.write_byte(addr, ra);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn ldh_c_a(&mut self) {
+    pub fn ldh_c_a(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             2 => (),
@@ -223,13 +223,13 @@ impl Cpu {
                 let ra = self.reg.get(R8::A);
                 let rc = self.reg.get(R8::C);
                 let addr = 0xFF00 + (rc as u16);
-                self.write_byte(addr, ra);
+                mmu.write_byte(addr, ra);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn ldh_a_at_c(&mut self) {
+    pub fn ldh_a_at_c(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             2 => (),
@@ -237,7 +237,7 @@ impl Cpu {
             1 => {
                 let rc = self.reg.get(R8::C);
                 let addr = 0xFF00 + (rc as u16);
-                let byte = self.read_byte(addr);
+                let byte = mmu.read_byte(addr);
                 self.reg.set(R8::A, byte);
             }
             _ => unreachable!(),
@@ -245,13 +245,13 @@ impl Cpu {
     }
 
     // [HL+]/[HL-] use some repeated logic, so I extracted it out here
-    fn ld_at_hl_a(&mut self) {
+    fn ld_at_hl_a(&mut self, mmu: &mut Mmu) {
         let byte = self.reg.get(R8::A);
-        self.write_at_hl(byte);
+        self.write_at_hl(byte, mmu);
     }
 
-    fn ld_a_at_hl(&mut self) {
-        let byte = self.read_at_hl();
+    fn ld_a_at_hl(&mut self, mmu: &mut Mmu) {
+        let byte = self.read_at_hl(mmu);
         self.reg.set(R8::A, byte);
     }
 
@@ -264,72 +264,72 @@ impl Cpu {
         self.reg.set16(R16::HL, result as u16);
     }
 
-    pub fn ld_a_at_hli(&mut self) {
+    pub fn ld_a_at_hli(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             2 => (),
             // Load [hl+] into A
             1 => {
-                self.ld_a_at_hl();
+                self.ld_a_at_hl(mmu);
                 self.step_hl_1(true);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn ld_at_hli_a(&mut self) {
+    pub fn ld_at_hli_a(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             2 => (),
             // Load A into [hl+]
             1 => {
-                self.ld_at_hl_a();
+                self.ld_at_hl_a(mmu);
                 self.step_hl_1(true);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn ld_a_at_hld(&mut self) {
+    pub fn ld_a_at_hld(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             2 => (),
             // Load [hl-] into A
             1 => {
-                self.ld_a_at_hl();
+                self.ld_a_at_hl(mmu);
                 self.step_hl_1(false);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn ld_at_hld_a(&mut self) {
+    pub fn ld_at_hld_a(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             2 => (),
             // Load A into [hl-]
             1 => {
-                self.ld_at_hl_a();
+                self.ld_at_hl_a(mmu);
                 self.step_hl_1(false);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn ld_at_n16_sp(&mut self) {
-        let n16 = self.fetch_word();
+    pub fn ld_at_n16_sp(&mut self, mmu: &mut Mmu) {
+        let n16 = self.fetch_word(mmu);
         let sp = self.reg.get16(R16::SP);
-        self.write_word(n16, sp);
+        mmu.write_word(n16, sp);
     }
 
     // This is a weird one. I'm having it use a function from alu.rs ADD 16-bit
-    pub fn ld_hl_sp_e8(&mut self) {
+    pub fn ld_hl_sp_e8(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Internal
             3 => (),
             // Read e8, load SP + e8 into HL
             2 => {
-                let byte = self.fetch_byte();
+                let byte = self.fetch_byte(mmu);
                 let result = self.calc_sp_plus_e8(byte);
                 self.reg.set16(R16::HL, result);
             }

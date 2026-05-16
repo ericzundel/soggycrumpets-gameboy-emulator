@@ -31,7 +31,6 @@ pub const PREFIXED_INSTRUCTION_T_CYCLE_TABLE: &[u8; 256] =
 
 pub struct Cpu {
     pub reg: Registers,
-    pub mmu: Rc<RefCell<Mmu>>,
 
     ime: bool,
     ime_pending: bool,
@@ -54,10 +53,9 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new(mmu: Rc<RefCell<Mmu>>) -> Cpu {
+    pub fn new() -> Cpu {
         Cpu {
             reg: Registers::new(),
-            mmu,
 
             ime: true,
             ime_pending: false,
@@ -80,21 +78,21 @@ impl Cpu {
         }
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, mmu: &mut Mmu) {
         // Update timings
         self.instruction_t_cycles_remaining = self.instruction_t_cycles_remaining.saturating_sub(1);
         self.instruction_m_cycles_remaining = self.instruction_t_cycles_remaining / 4;
 
         // One instruction per m-cycle
         if self.instruction_t_cycles_remaining % M_CYCLE_DURATION as u8 == 0 {
-            self.step();
+            self.step(mmu);
         }
     }
 
-    fn step(&mut self) {
+    fn step(&mut self, mmu: &mut Mmu) {
       
 
-        self.update_interrupt_status();
+        self.update_interrupt_status(mmu);
         if self.ime_pending {
             self.ime = true;
             self.ime_pending = false;
@@ -102,20 +100,20 @@ impl Cpu {
 
         if !self.halted && !self.handling_interrupt {
             if !self.prefixed_instruction_mode {
-                self.execute();
+                self.execute(mmu);
             } else {
-                self.execute_prefixed();
+                self.execute_prefixed(mmu);
             }
         }
 
         if self.handling_interrupt {
-            self.step_interrupt();
+            self.step_interrupt(mmu);
         }
     }
 
-    fn fetch_byte(&mut self) -> u8 {
+    fn fetch_byte(&mut self, mmu: &mut Mmu) -> u8 {
         let pc = self.reg.get16(R16::PC);
-        let byte = self.read_byte(pc);
+        let byte = mmu.read_byte(pc);
 
         let next_addr = if !self.halt_bug_active {
             pc + 1
@@ -132,9 +130,9 @@ impl Cpu {
         (self.word_buf_low as u16) | ((self.word_buf_high as u16) << 8)
     }
 
-    fn fetch_word(&mut self) -> u16 {
+    fn fetch_word(&mut self, mmu: &mut Mmu) -> u16 {
         let pc = self.reg.get16(R16::PC);
-        let word = self.mmu.borrow_mut().read_word(pc);
+        let word = mmu.read_word(pc);
 
         let next_addr = pc + 2;
         self.reg.set16(R16::PC, next_addr);
@@ -142,28 +140,16 @@ impl Cpu {
         word
     }
     // Tons of instructions read or write at hl, so I extracted out the logic here
-    fn read_at_hl(&self) -> u8 {
+    fn read_at_hl(&self, mmu: &mut Mmu) -> u8 {
         let hl = self.reg.get16(R16::HL);
-        self.read_byte(hl)
+        mmu.read_byte(hl)
     }
 
-    fn write_at_hl(&mut self, byte: u8) {
+    fn write_at_hl(&mut self, byte: u8, mmu: &mut Mmu) {
         let hl = self.reg.get16(R16::HL);
-        self.write_byte(hl, byte);
+        mmu.write_byte(hl, byte);
     }
-
-    // Wrapper functions arround MMU reads/writes to make them more clear and ergonomic
-    fn read_byte(&self, addr: u16) -> u8 {
-        self.mmu.borrow().read_byte(addr)
-    }
-
-    fn write_byte(&self, addr: u16, byte: u8) {
-        self.mmu.borrow_mut().write_byte(addr, byte);
-    }
-
-    fn write_word(&self, addr: u16, word: u16) {
-        self.mmu.borrow_mut().write_word(addr, word);
-    }
+   
 }
 
 pub mod debug {

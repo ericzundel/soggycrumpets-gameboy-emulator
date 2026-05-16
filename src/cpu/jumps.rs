@@ -17,15 +17,15 @@ impl Cpu {
         self.jp_u16(hl);
     }
 
-    pub fn jp_a16(&mut self) {
+    pub fn jp_a16(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             4 => (),
             // Read a16 lower byte
-            3 => self.word_buf_low = self.fetch_byte(),
+            3 => self.word_buf_low = self.fetch_byte(mmu),
             // Read a16 upper byte and jump to a16
             2 => {
-                self.word_buf_high = self.fetch_byte();
+                self.word_buf_high = self.fetch_byte(mmu);
                 let addr = self.get_word_buf();
                 self.jp_u16(addr);
             }
@@ -35,15 +35,15 @@ impl Cpu {
         }
     }
 
-    pub fn jp_cc_a16(&mut self, flag: Flag, expect: bool) {
+    pub fn jp_cc_a16(&mut self, flag: Flag, expect: bool, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             4 => (),
             // Read a16 lower byte
-            3 => self.word_buf_low = self.fetch_byte(),
+            3 => self.word_buf_low = self.fetch_byte(mmu),
             // Read a16 upper byte and jump to a16
             2 => {
-                self.word_buf_high = self.fetch_byte();
+                self.word_buf_high = self.fetch_byte(mmu);
                 let addr = self.get_word_buf();
                 if expect == self.reg.get_flag(flag) {
                     self.jp_u16(addr);
@@ -66,13 +66,13 @@ impl Cpu {
         self.reg.set16(R16::PC, new_addr)
     }
 
-    pub fn jr_e8(&mut self) {
-        let byte = self.fetch_byte();
+    pub fn jr_e8(&mut self, mmu: &mut Mmu) {
+        let byte = self.fetch_byte(mmu);
         self.jr(byte);
     }
 
-    pub fn jr_cc_e8(&mut self, flag: Flag, expect: bool) {
-        let byte = self.fetch_byte();
+    pub fn jr_cc_e8(&mut self, flag: Flag, expect: bool, mmu: &mut Mmu) {
+        let byte = self.fetch_byte(mmu);
 
         if expect == self.reg.get_flag(flag) {
             self.jr(byte);
@@ -83,56 +83,56 @@ impl Cpu {
 
     // CALL
     // The cycle timings and actual function line up perfectly with PUSH, so I'm reusing it.
-    pub fn rst_vec(&mut self, addr: u16) {
+    pub fn rst_vec(&mut self, addr: u16, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             4 => (),
             // Internal
             3 => (),
             // Write the high byte to memory
-            2 => self.push_r16(R16::PC),
+            2 => self.push_r16(R16::PC, mmu),
             // Write the low byte to memory, then jump
             1 => {
-                self.push_r16(R16::PC);
+                self.push_r16(R16::PC, mmu);
                 self.jp_u16(addr);
             }
             _ => unreachable!(),
         }
     }
     
-    pub fn call_a16(&mut self) {
+    pub fn call_a16(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             6 => (),
             // Read the low byte of a16
-            5 => self.word_buf_low = self.fetch_byte(),
+            5 => self.word_buf_low = self.fetch_byte(mmu),
             // Read the high byte of a16
-            4 => self.word_buf_high = self.fetch_byte(),
+            4 => self.word_buf_high = self.fetch_byte(mmu),
             // Internal
             3 => (),
             // Write high PC to SP
             2 => {
                 let word = self.get_word_buf();
-                self.rst_vec(word);
+                self.rst_vec(word, mmu);
             }
             // Write low PC to SP
             1 => {
                 let word = self.get_word_buf();
-                self.rst_vec(word);
+                self.rst_vec(word, mmu);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn call_cc_a16(&mut self, flag: Flag, expect: bool) {
+    pub fn call_cc_a16(&mut self, flag: Flag, expect: bool, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             6 => (),
             // Read the low byte of a16
-            5 => self.word_buf_low = self.fetch_byte(),
+            5 => self.word_buf_low = self.fetch_byte(mmu),
             // Read the high byte of a16 and check condition
             4 => {
-                self.word_buf_high = self.fetch_byte();
+                self.word_buf_high = self.fetch_byte(mmu);
                 if expect != self.reg.get_flag(flag) {
                     self.instruction_t_cycles_remaining -= CALL_CC_EXTRA_T_CYCLES;
                 }
@@ -142,12 +142,12 @@ impl Cpu {
             // Write high PC to SP and check condition
             2 => {
                 let word = self.get_word_buf();
-                self.rst_vec(word);
+                self.rst_vec(word, mmu);
             }
             // Write low PC to SP
             1 => {
                 let word = self.get_word_buf();
-                self.rst_vec(word);
+                self.rst_vec(word, mmu);
             }
             _ => unreachable!(),
         }
@@ -155,14 +155,14 @@ impl Cpu {
 
     // RET
     // RET is just POP SP, with slightly different timings
-    pub fn ret(&mut self) {
+    pub fn ret(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             4 => (),
             // Read the low byte from memory
             3 => {
                 let sp = self.reg.get16(R16::SP);
-                let low_byte = self.read_byte(sp);
+                let low_byte = mmu.read_byte(sp);
 
                 self.reg.set16_low(R16::PC, low_byte);
                 self.reg.set16(R16::SP, sp.wrapping_add(1));
@@ -170,7 +170,7 @@ impl Cpu {
             // Read the high byte from memory
             2 => {
                 let sp = self.reg.get16(R16::SP);
-                let high_byte = self.read_byte(sp);
+                let high_byte = mmu.read_byte(sp);
 
                 self.reg.set16_high(R16::PC, high_byte);
                 self.reg.set16(R16::SP, sp.wrapping_add(1));
@@ -181,7 +181,7 @@ impl Cpu {
         }
     }
 
-    pub fn ret_cc(&mut self, flag: Flag, expect: bool) {
+    pub fn ret_cc(&mut self, flag: Flag, expect: bool, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             5 => (),
@@ -192,24 +192,24 @@ impl Cpu {
                 }
             }
             // Read the low byte from memory
-            3 => self.ret(),
+            3 => self.ret(mmu),
             // Read the high byte from memory
-            2 => self.ret(),
+            2 => self.ret(mmu),
             // Internal
             1 => (),
             _ => unreachable!(),
         }
     }
 
-    pub fn reti(&mut self) {
+    pub fn reti(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             4 => (),
             // Read SP lower
-            3 => self.ret(),
+            3 => self.ret(mmu),
             // Read SP upper and enable interrupts
             2 => {
-                self.ret();
+                self.ret(mmu);
                 self.ei();
             }
             // Internal

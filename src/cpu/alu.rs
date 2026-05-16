@@ -51,36 +51,36 @@ impl Cpu {
         self.alu_a_u8(op, value);
     }
 
-    pub fn alu_a_at_hl(&mut self, op: AluBinary) {
+    pub fn alu_a_at_hl(&mut self, op: AluBinary, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             2 => (),
             // Op on A with [HL]
             1 => {
-                let value = self.read_at_hl();
+                let value = self.read_at_hl(mmu);
                 self.alu_a_u8(op, value);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn alu_at_hl(&mut self, op: AluUnary) {
+    pub fn alu_at_hl(&mut self, op: AluUnary, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             3 => (),
             // Read from [HL]
-            2 => self.byte_buf = self.read_at_hl(),
+            2 => self.byte_buf = self.read_at_hl(mmu),
             // Write to [HL]
             1 => {
                 let result = self.alu_u8(op, self.byte_buf);
-                self.write_at_hl(result);
+                self.write_at_hl(result, mmu);
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn alu_a_n8(&mut self, op: AluBinary) {
-        let value = self.fetch_byte();
+    pub fn alu_a_n8(&mut self, op: AluBinary, mmu: &mut Mmu) {
+        let value = self.fetch_byte(mmu);
         self.alu_a_u8(op, value);
     }
 
@@ -143,13 +143,13 @@ impl Cpu {
         result
     }
 
-    pub fn add_sp_e8(&mut self) {
+    pub fn add_sp_e8(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // Fetch
             4 => (),
             // Read e8, calculate, write to SP
             3 => {
-                self.byte_buf = self.fetch_byte();
+                self.byte_buf = self.fetch_byte(mmu);
                 let word = self.calc_sp_plus_e8(self.byte_buf);
                 self.reg.set16(R16::SP, word);
             }

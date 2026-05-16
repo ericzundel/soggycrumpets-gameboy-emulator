@@ -3,7 +3,7 @@
 
 mod cli;
 mod cpu;
-mod debugger;
+// mod debugger;
 mod mmu;
 mod ppu;
 mod ui;
@@ -13,7 +13,7 @@ use cli::{Command, parse_cli_inputs};
 
 use cpu::registers::R16;
 use cpu::{Cpu, registers::R8};
-use debugger::run_debug;
+// use debugger::run_debug;
 use mmu::{Mmu, memmap::*};
 use ppu::Ppu;
 use sdl2::keyboard::Scancode;
@@ -35,7 +35,8 @@ fn main() {
     let input = parse_cli_inputs();
     match input {
         Command::Rom(path) => run_rom(&path),
-        Command::Debug(path) => run_debug(&path),
+        // Command::Debug(path) => run_debug(&path),
+        _ => (),
     }
 }
 
@@ -62,7 +63,7 @@ fn run_rom(path: &str) {
     while ui.running {
 
         if !frame_ready {
-            cpu.tick();
+            cpu.tick(&mut mmu.borrow_mut());
             mmu.borrow_mut().tick_timers();
             mmu.borrow_mut().tick_dma();
 
@@ -85,7 +86,7 @@ fn run_rom(path: &str) {
 
 fn create_gameboy_components() -> (Rc<RefCell<Mmu>>, Cpu, Ppu) {
     let mmu = Mmu::new();
-    let cpu = Cpu::new(Rc::clone(&mmu));
+    let cpu = Cpu::new();
     let ppu = Ppu::new(Rc::clone(&mmu));
     (mmu, cpu, ppu)
 }

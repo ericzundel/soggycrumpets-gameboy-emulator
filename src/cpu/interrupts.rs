@@ -10,14 +10,14 @@ const INTERRUPT_MASK: u8 = 0x1F;
 const CANCELLED_INTERRUPT_RETURN_ADDR: u16 = 0x0000;
 
 impl Cpu {
-    pub fn update_interrupt_status(&mut self) {
+    pub fn update_interrupt_status(&mut self, mmu: &mut Mmu) {
         // Interrupts cannot be triggered in the middle of instructions.
         if self.instruction_m_cycles_remaining > 1 {
             return;
         }
 
-        let ie_byte = self.read_byte(IE_ADDR);
-        let if_byte = self.read_byte(IF_ADDR);
+        let ie_byte = mmu.read_byte(IE_ADDR);
+        let if_byte = mmu.read_byte(IF_ADDR);
         let interrupts_are_pending = (ie_byte & if_byte & INTERRUPT_MASK) != 0;
 
         if !interrupts_are_pending {
@@ -75,11 +75,11 @@ impl Cpu {
     /// I'm not managing to pass
     /// [Mooneye's test](https://github.com/Gekkio/mooneye-test-suite/blob/main/acceptance/interrupts/ie_push.s)
     /// for it, but but this behavior is obscure enough that it is unlikely to matter in almost any case.
-    pub fn step_interrupt(&mut self) {
+    pub fn step_interrupt(&mut self, mmu: &mut Mmu) {
         match self.instruction_m_cycles_remaining {
             // NOP
             5 => (),
-            // NOP
+            // NOw
             4 => (),
             // Push PC high byte and update the status of the interrupt (cancelled?)
             3 => {
@@ -87,9 +87,9 @@ impl Cpu {
                 self.reg.set16(R16::SP, sp);
 
                 let high_byte = (self.reg.get16(R16::PC) >> 8) as u8;
-                self.write_byte(sp, high_byte);
+                mmu.write_byte(sp, high_byte);
 
-                let ie = self.read_byte(IE_ADDR);
+                let ie = mmu.read_byte(IE_ADDR);
                 let enabled = get_bit(ie, self.current_interrupt_bit);
 
                 self.ime = false;
@@ -97,9 +97,9 @@ impl Cpu {
                 if !enabled {
                     self.current_interrupt_handler_addr = CANCELLED_INTERRUPT_RETURN_ADDR;
                 } else {
-                    let mut if_byte = self.read_byte(IF_ADDR);
+                    let mut if_byte = mmu.read_byte(IF_ADDR);
                     set_bit(&mut if_byte, self.current_interrupt_bit, false);
-                    self.write_byte(IF_ADDR, if_byte);
+                    mmu.write_byte(IF_ADDR, if_byte);
                 }
             }
             // Push PC low byte
@@ -109,7 +109,7 @@ impl Cpu {
                 self.reg.set16(R16::SP, sp);
 
                 let low_byte = self.reg.get16(R16::PC) as u8;
-                self.write_byte(sp, low_byte);
+                mmu.write_byte(sp, low_byte);
             }
             // Jump to interrupt handler address
             1 => {
@@ -133,9 +133,9 @@ impl Cpu {
     // TODO
     pub fn stop(&mut self) {}
 
-    pub fn halt(&mut self) {
-        let ie_byte = self.read_byte(IE_ADDR);
-        let if_byte = self.read_byte(IF_ADDR);
+    pub fn halt(&mut self, mmu: &mut Mmu) {
+        let ie_byte = mmu.read_byte(IE_ADDR);
+        let if_byte = mmu.read_byte(IF_ADDR);
         let interrupts_are_pending = (ie_byte & if_byte & INTERRUPT_MASK) != 0;
 
         self.halted = !(self.ime && interrupts_are_pending);
