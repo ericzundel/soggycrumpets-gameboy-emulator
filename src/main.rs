@@ -67,7 +67,7 @@ fn run_rom(path: &str) {
             mmu.borrow_mut().tick_timers();
             mmu.borrow_mut().tick_dma();
 
-            frame_ready = ppu.tick();
+            frame_ready = ppu.tick(&mut mmu.borrow_mut());
         }
 
         time_elapsed = last_render_time.elapsed();
@@ -87,7 +87,7 @@ fn run_rom(path: &str) {
 fn create_gameboy_components() -> (Rc<RefCell<Mmu>>, Cpu, Ppu) {
     let mmu = Mmu::new();
     let cpu = Cpu::new();
-    let ppu = Ppu::new(Rc::clone(&mmu));
+    let ppu = Ppu::new();
     (mmu, cpu, ppu)
 }
 

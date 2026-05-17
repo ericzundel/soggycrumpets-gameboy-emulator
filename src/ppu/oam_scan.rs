@@ -1,6 +1,7 @@
 use crate::ppu::tiles::{TILE_HEIGHT_IN_PIXELS, TILE_WIDTH_IN_PIXELS, get_tile_row};
 use crate::ppu::{DISPLAY_HEIGHT, DISPLAY_WIDTH};
 use crate::util::get_bit;
+use crate::Mmu;
 use crate::{Ppu, mmu::memmap::OAM_START};
 
 // OAM scan takes two dots/t-cycles per object, scanning 40 objects in total.
@@ -34,15 +35,15 @@ struct ObjectFlags {
 }
 
 impl Ppu {
-    pub fn tick_oam_scan(&mut self) {
+    pub fn tick_oam_scan(&mut self, mmu: &mut Mmu) {
         if (self.mode_dots % 2) != 0 {
             return;
         }
 
         let object_number = (self.mode_dots / 2) - 1;
         let object_addr = OAM_START + ((object_number) * OBJECT_SIZE_BYTES) as u16;
-        let (y_position, x_position, tile_index, flags) = self.get_oam_bytes(&object_addr);
-        let tile_start_addr = self.get_tile_start_addr(tile_index, true);
+        let (y_position, x_position, tile_index, flags) = self.get_oam_bytes(&object_addr, mmu);
+        let tile_start_addr = self.get_tile_start_addr(tile_index, true, mmu);
 
         let object_height = 8;
 
@@ -55,8 +56,8 @@ impl Ppu {
                 tile_row_index = (TILE_HEIGHT_IN_PIXELS - 1) as u8 - tile_row_index;
             }
 
-            let tile_row_high_byte = self.get_tile_row_high_byte(tile_start_addr, tile_row_index);
-            let tile_row_low_byte = self.get_tile_row_low_byte(tile_start_addr, tile_row_index);
+            let tile_row_high_byte = self.get_tile_row_high_byte(tile_start_addr, tile_row_index, mmu);
+            let tile_row_low_byte = self.get_tile_row_low_byte(tile_start_addr, tile_row_index, mmu);
             let mut object_row = get_tile_row(tile_row_low_byte, tile_row_high_byte);
 
             if flags.xflip {
@@ -81,11 +82,11 @@ impl Ppu {
         // );
     }
 
-    fn get_oam_bytes(&mut self, addr: &u16) -> (u8, u8, u8, ObjectFlags) {
-        let y_position = self.read_byte(*addr);
-        let x_position = self.read_byte(*addr + 1);
-        let tile_index = self.read_byte(*addr + 2);
-        let flags_byte = self.read_byte(*addr + 3);
+    fn get_oam_bytes(&mut self, addr: &u16, mmu: &mut Mmu) -> (u8, u8, u8, ObjectFlags) {
+        let y_position = self.read_byte(*addr, mmu);
+        let x_position = self.read_byte(*addr + 1, mmu);
+        let tile_index = self.read_byte(*addr + 2, mmu);
+        let flags_byte = self.read_byte(*addr + 3, mmu);
         let flags = ObjectFlags {
             priority: get_bit(flags_byte, 7),
             yflip: get_bit(flags_byte, 6),

@@ -61,7 +61,7 @@ impl Ppu {
     /// to the screen, but this implementation does not use the FIFO.
     /// The way it works now: 8 t-cycles to draw 8 pixels, 160 t-cycles to draw a scanline.
     /// The fetcher progresses one state every other t-cycle.
-    pub fn tick_fetcher(&mut self) {
+    pub fn tick_fetcher(&mut self, mmu: &mut Mmu) {
         if self.mode_dots % 2 != 0 {
             return;
         }
@@ -72,33 +72,33 @@ impl Ppu {
 
         match self.fetcher.state {
             FetcherState::GetTile => {
-                self.fetcher_get_tile();
+                self.fetcher_get_tile(mmu);
                 self.fetcher.state = FetcherState::GetTileDataLow;
             }
             FetcherState::GetTileDataLow => {
-                self.fetcher_get_tile_data(false);
+                self.fetcher_get_tile_data(false, mmu);
                 self.fetcher.state = FetcherState::GetTileDataHigh;
             }
             FetcherState::GetTileDataHigh => {
-                self.fetcher_get_tile_data(true);
+                self.fetcher_get_tile_data(true, mmu);
                 self.fetcher.state = FetcherState::Push;
             }
             FetcherState::Sleep => self.fetcher_sleep(),
             FetcherState::Push => {
-                self.fetcher_push();
+                self.fetcher_push(mmu);
                 self.fetcher.state = FetcherState::GetTile;
                 self.lx += TILE_WIDTH_IN_PIXELS as u8;
             }
         }
     }
 
-    fn fetcher_get_tile(&mut self) {
-        let bg_tile_map = self.get_lcdc_flag(BG_TILE_MAP_BIT);
-        let window_tile_map = self.get_lcdc_flag(WINDOW_TILE_MAP_BIT);
+    fn fetcher_get_tile(&mut self, mmu: &mut Mmu) {
+        let bg_tile_map = self.get_lcdc_flag(BG_TILE_MAP_BIT, mmu);
+        let window_tile_map = self.get_lcdc_flag(WINDOW_TILE_MAP_BIT, mmu);
 
-        let window_enable = self.get_lcdc_flag(WINDOW_ENABLE_BIT);
+        let window_enable = self.get_lcdc_flag(WINDOW_ENABLE_BIT, mmu);
 
-        self.update_wx();
+        self.update_wx(mmu);
         self.fetcher.drawing_window = self.wx_triggered && self.wy_triggered && window_enable;
         if self.fetcher.drawing_window {
             self.window_drawn_this_scanline = true;
@@ -120,12 +120,12 @@ impl Ppu {
         // tile's current y-position in memory. wy_counter = 0 will render the topmost window tile,
         // wy_counter = 1 will render the next, etc.
         (self.fetcher.x, self.fetcher.y) = if self.fetcher.drawing_window {
-            let wx = self.read_byte(WX_ADDR).wrapping_sub(7);
+            let wx = self.read_byte(WX_ADDR, mmu).wrapping_sub(7);
             let wy = self.wy_counter;
             (self.lx.wrapping_sub(wx), wy)
         } else {
-            let scx = self.read_byte(SCX_ADDR);
-            let scy = self.read_byte(SCY_ADDR);
+            let scx = self.read_byte(SCX_ADDR, mmu);
+            let scy = self.read_byte(SCY_ADDR, mmu);
             (self.lx.wrapping_add(scx), self.ly.wrapping_add(scy))
         };
 
@@ -136,31 +136,33 @@ impl Ppu {
             + (self.fetcher.tile_y as u16 * TILEMAP_WIDTH)
             + (self.fetcher.tile_x) as u16;
 
-        let tile_index = self.read_byte(tilemap_addr);
+        let tile_index = self.read_byte(tilemap_addr, mmu);
 
-        self.fetcher.tile_addr = self.get_tile_start_addr(tile_index, false);
+        self.fetcher.tile_addr = self.get_tile_start_addr(tile_index, false, mmu);
     }
 
-    fn fetcher_get_tile_data(&mut self, high: bool) {
+    fn fetcher_get_tile_data(&mut self, high: bool, mmu: &mut Mmu) {
         let tile_start_addr = self.fetcher.tile_addr;
         let row_index = self.fetcher.y % TILE_HEIGHT_IN_PIXELS as u8;
 
         if high {
-            self.fetcher.tile_data_high = self.get_tile_row_high_byte(tile_start_addr, row_index);
+            self.fetcher.tile_data_high =
+                self.get_tile_row_high_byte(tile_start_addr, row_index, mmu);
         } else {
-            self.fetcher.tile_data_low = self.get_tile_row_low_byte(tile_start_addr, row_index);
+            self.fetcher.tile_data_low =
+                self.get_tile_row_low_byte(tile_start_addr, row_index, mmu);
         }
     }
 
     fn fetcher_sleep(&self) {}
 
-    fn fetcher_push(&mut self) {
+    fn fetcher_push(&mut self, mmu: &mut Mmu) {
         let mut tile_row = get_tile_row(self.fetcher.tile_data_low, self.fetcher.tile_data_high);
         let row = self.ly as usize;
         let col = self.lx as usize;
 
         // If bg and window isn't enabled, the pixels are replaced with all 0
-        let bg_and_window_enable = self.get_lcdc_flag(BG_AND_WINDOW_ENABLE_BIT);
+        let bg_and_window_enable = self.get_lcdc_flag(BG_AND_WINDOW_ENABLE_BIT, mmu);
         tile_row = if bg_and_window_enable {
             tile_row
         } else {
@@ -176,8 +178,8 @@ impl Ppu {
     /// offscreen to the left. LX = 0, on the other hand, starts at the left of the screen as you
     /// would expect. This means that any time you compare the two, you need to either add 7 to LX
     /// or subtract 7 from WX to ensure that they are both measured from the same point.
-    fn update_wx(&mut self) {
-        let wx = self.read_byte(WX_ADDR);
+    fn update_wx(&mut self, mmu: &mut Mmu) {
+        let wx = self.read_byte(WX_ADDR, mmu);
         if (self.lx) == wx.wrapping_sub(7) {
             self.wx_triggered = true;
         }
