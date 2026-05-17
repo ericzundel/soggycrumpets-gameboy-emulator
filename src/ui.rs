@@ -1,17 +1,19 @@
-use std::{collections::HashMap, hash::Hash, iter::Scan};
+use crate::ppu::{DISPLAY_HEIGHT, DISPLAY_WIDTH, GbDisplay};
 
-use crate::ppu::GbDisplay;
-
-use sdl2::{
-    EventPump, event::Event, keyboard::Scancode, pixels::Color, rect::Rect, render::Canvas,
-    video::Window,
-};
+use sdl2::{EventPump, event::Event, render::Canvas, video::Window};
 
 pub const WINDOW_WIDTH: usize = 160;
 pub const WINDOW_HEIGHT: usize = 144;
 pub const WINDOW_SCALE_FACTOR: usize = 2;
-
 const SCANCODE_MAX_VALUE: usize = 512;
+const DISPLAY_WIDTH_BYTES: usize = DISPLAY_WIDTH * 4;
+const DISPLAY_BYTES: usize = DISPLAY_WIDTH_BYTES * DISPLAY_HEIGHT;
+
+// These are the four pixel colors that the gameboy can produce. Format: [R, G, B, A]
+const COLOR_0: [u8; 4] = [0xE0, 0xF8, 0xD0, 0xFF]; //Color::RGB(224, 248, 208);
+const COLOR_1: [u8; 4] = [0x88, 0xC0, 0x70, 0xFF]; //Color::RGB(136, 192, 112);
+const COLOR_2: [u8; 4] = [0x34, 0x68, 0x56, 0xFF]; //Color::RGB(52, 104, 86);
+const COLOR_3: [u8; 4] = [0x08, 0x18, 0x20, 0xFF]; //Color::RGB(8, 24, 32);
 
 #[derive(Clone, Debug)]
 pub struct Inputs {
@@ -73,30 +75,39 @@ impl UserInterface {
     }
 
     pub fn render_display(&mut self, display: &GbDisplay) {
-        self.canvas.set_draw_color(Color::RGB(0, 0, 0));
         self.canvas.clear();
+
+        // Each pixel is a u32 RGBA value, but SDL wants an array of bytes
+        let mut pixels_rgb: [u8; DISPLAY_BYTES] = [0; DISPLAY_BYTES];
+
+        // This loop unpacks our 2d 4-color pixel array into the 1d RGBA byte array format that SDL wants.
         for (y, row) in display.iter().enumerate() {
             for (x, pixel) in row.iter().enumerate() {
-                let color = match pixel {
-                    3 => Color::RGB(8, 24, 32),
-                    2 => Color::RGB(52, 104, 86),
-                    1 => Color::RGB(136, 192, 112),
-                    0 => Color::RGB(224, 248, 208),
-                    _ => panic!("Invalid pixel color value detected in the display"),
-                };
-                self.canvas.set_draw_color(color);
-
-                self.canvas
-                    .fill_rect(Rect::new(
-                        (x as i32) * (WINDOW_SCALE_FACTOR as i32),
-                        (y as i32) * (WINDOW_SCALE_FACTOR as i32),
-                        WINDOW_SCALE_FACTOR as u32,
-                        WINDOW_SCALE_FACTOR as u32,
-                    ))
-                    .unwrap();
+                for rgba_segment in 0..4 {
+                    pixels_rgb[(y * DISPLAY_WIDTH + x) * 4 + rgba_segment] = match pixel {
+                        3 => COLOR_3[rgba_segment],
+                        2 => COLOR_2[rgba_segment],
+                        1 => COLOR_1[rgba_segment],
+                        0 => COLOR_0[rgba_segment],
+                        _ => panic!("Invalid pixel color value detected in the display"),
+                    };
+                }
             }
         }
 
+        let texture_creator = self.canvas.texture_creator();
+        let mut texture = texture_creator
+            .create_texture_streaming(
+                sdl2::pixels::PixelFormatEnum::RGBA32,
+                DISPLAY_WIDTH as u32,
+                DISPLAY_HEIGHT as u32,
+            )
+            .unwrap();
+        texture
+            .update(None, &pixels_rgb, DISPLAY_WIDTH_BYTES)
+            .unwrap();
+
+        let _ = self.canvas.copy(&texture, None, None);
         self.canvas.present();
     }
 

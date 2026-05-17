@@ -23,8 +23,8 @@ const VBLANK_MODE_NUMBER: u8 = 1;
 const OAM_SCAN_MODE_NUMBER: u8 = 2;
 const PIXEL_DRAW_MODE_NUMBER: u8 = 3;
 
-const DISPLAY_WIDTH: usize = 160;
-const DISPLAY_HEIGHT: usize = 144;
+pub const DISPLAY_WIDTH: usize = 160;
+pub const DISPLAY_HEIGHT: usize = 144;
 
 use crate::{
     mmu::{self, memmap::*},
