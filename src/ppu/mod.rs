@@ -7,7 +7,7 @@ mod tiles;
 // everything to sync up properly
 
 // https://gbdev.io/pandocs/Rendering.html
-const FRAME_DOTS: u32 = 70224;
+pub const FRAME_DOTS: u32 = 70224;
 const SCANLINES_PER_FRAME: u32 = 154;
 const DOTS_PER_SCANLINE: u32 = FRAME_DOTS / SCANLINES_PER_FRAME;
 

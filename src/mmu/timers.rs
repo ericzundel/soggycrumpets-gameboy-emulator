@@ -242,9 +242,9 @@ mod tests {
     }
 
     fn test_clock_mode(mode: u8) {
-        let mmu = Mmu::new();
-        mmu.borrow_mut().set_tac_enable(true);
-        mmu.borrow_mut().set_tac_clock_select(mode);
+        let mut mmu = Mmu::new();
+        mmu.set_tac_enable(true);
+        mmu.set_tac_clock_select(mode);
         let period = match mode {
             1 => TAC_CLOCK_1_T_CYCLE_PERIOD,
             2 => TAC_CLOCK_2_T_CYCLE_PERIOD,
@@ -254,38 +254,38 @@ mod tests {
         };
 
         for _i in 0..period - 1 {
-            mmu.borrow_mut().tick_timers();
-            let tima = mmu.borrow().read_byte(TIMA_ADDR);
+            mmu.tick_timers();
+            let tima = mmu.read_byte(TIMA_ADDR);
             assert_eq!(tima, 0);
         }
-        mmu.borrow_mut().tick_timers();
-        let tima = mmu.borrow().read_byte(TIMA_ADDR);
+        mmu.tick_timers();
+        let tima = mmu.read_byte(TIMA_ADDR);
         assert_eq!(tima, 1);
     }
 
     #[test]
     fn test_div_write_causing_tima_increment() {
         {
-            let mmu = Mmu::new();
-            mmu.borrow_mut().timers.system_clock = 0xFFFF;
-            mmu.borrow_mut().set_tac_enable(true);
-            mmu.borrow_mut().set_tac_clock_select(0);
+            let mut mmu = Mmu::new();
+            mmu.timers.system_clock = 0xFFFF;
+            mmu.set_tac_enable(true);
+            mmu.set_tac_clock_select(0);
 
-            mmu.borrow_mut().write_byte(DIV_ADDR, 0);
+            mmu.write_byte(DIV_ADDR, 0);
 
-            assert_eq!(mmu.borrow_mut().timers.system_clock, 0);
-            mmu.borrow_mut().tick_timers();
-            let tima = mmu.borrow_mut().read_byte(TIMA_ADDR);
+            assert_eq!(mmu.timers.system_clock, 0);
+            mmu.tick_timers();
+            let tima = mmu.read_byte(TIMA_ADDR);
             assert_eq!(tima, 1);
         }
         {
-            let mmu = Mmu::new();
-            mmu.borrow_mut().timers.system_clock = 0xFFFF;
-            mmu.borrow_mut().set_tac_enable(true);
-            mmu.borrow_mut().set_tac_clock_select(0);
+            let mut mmu = Mmu::new();
+            mmu.timers.system_clock = 0xFFFF;
+            mmu.set_tac_enable(true);
+            mmu.set_tac_clock_select(0);
 
-            mmu.borrow_mut().tick_timers();
-            let tima = mmu.borrow_mut().read_byte(TIMA_ADDR);
+            mmu.tick_timers();
+            let tima = mmu.read_byte(TIMA_ADDR);
             assert_eq!(tima, 0);
         }
     }

@@ -15,13 +15,11 @@ use cpu::registers::R16;
 use cpu::{Cpu, registers::R8};
 // use debugger::run_debug;
 use mmu::{Mmu, memmap::*};
+use ppu::FRAME_DOTS;
 use ppu::Ppu;
 use sdl2::keyboard::Scancode;
-use std::{
-    cell::RefCell,
-    rc::Rc,
-    time::{Duration, Instant},
-};
+use std::thread::sleep;
+use std::time::{Duration, Instant};
 use ui::UserInterface;
 
 use crate::ui::Inputs;
@@ -43,48 +41,48 @@ fn main() {
 fn run_rom(path: &str) {
     println!("\nLoading rom at: \"{}\"", path);
 
-    let (mmu, mut cpu, mut ppu) = create_gameboy_components();
+    let (mut mmu, mut cpu, mut ppu) = create_gameboy_components();
 
-    if !mmu.borrow_mut().load_rom(path) {
+    if !mmu.load_rom(path) {
         println!("Failed to load rom at \"{}\"", path);
         return;
     }
 
-    initialize_memory(&mmu, &mut cpu);
+    initialize_memory(&mut mmu, &mut cpu);
 
     let mut ui = UserInterface::new();
 
     let framerate = Duration::from_secs_f64(GAMEBOY_FRAMERATE);
     let mut last_render_time = Instant::now();
-    let mut frame_ready: bool = false;
     let mut time_elapsed: Duration;
 
     // One loop represents one t-cycle
     while ui.running {
+        loop {
+            cpu.tick(&mut mmu);
+            mmu.tick_timers();
+            mmu.tick_dma();
 
-        if !frame_ready {
-            cpu.tick(&mut mmu.borrow_mut());
-            mmu.borrow_mut().tick_timers();
-            mmu.borrow_mut().tick_dma();
-
-            frame_ready = ppu.tick(&mut mmu.borrow_mut());
+            if ppu.tick(&mut mmu) {
+                break; // frame complete
+            };
         }
 
+        // TODO: Sleeping saves significant CPU power, but often oversleeps
         time_elapsed = last_render_time.elapsed();
-        if frame_ready && time_elapsed >= framerate {
-            frame_ready = false;
-
-            last_render_time += framerate;
-
-            ui.render_display(&ppu.display);
-
-            ui.process_inputs();
-            update_joypad(&mut mmu.borrow_mut(), &ui.inputs);
+        if time_elapsed < framerate {
+            sleep(framerate - time_elapsed);
         }
+        last_render_time += framerate;
+
+        ui.render_display(&ppu.display);
+
+        ui.process_inputs();
+        update_joypad(&mut mmu, &ui.inputs);
     }
 }
 
-fn create_gameboy_components() -> (Rc<RefCell<Mmu>>, Cpu, Ppu) {
+fn create_gameboy_components() -> (Mmu, Cpu, Ppu) {
     let mmu = Mmu::new();
     let cpu = Cpu::new();
     let ppu = Ppu::new();
@@ -96,7 +94,7 @@ fn create_gameboy_components() -> (Rc<RefCell<Mmu>>, Cpu, Ppu) {
 /// replicates the post-boot state, rather than requiring them to source the bootrom.
 /// [Pan Docs](https://gbdev.io/pandocs/Power_Up_Sequence.html?highlight=power%20up#power-up-sequence)
 /// contains all of the necessary information to do this.
-fn initialize_memory(mmu: &Rc<RefCell<Mmu>>, cpu: &mut Cpu) {
+fn initialize_memory(mmu: &mut Mmu, cpu: &mut Cpu) {
     cpu.reg.set(R8::A, 0x01);
     // The H and C flags in the F register depend on the cartridge header checksum.
     // They are both true if checksum != 0x00, otherwise they are both false.
@@ -112,7 +110,6 @@ fn initialize_memory(mmu: &Rc<RefCell<Mmu>>, cpu: &mut Cpu) {
     cpu.reg.set16(R16::SP, 0xFFFE);
 
     // Hardware registers
-    let mut mmu = mmu.borrow_mut();
     mmu.write_byte_override(NR_10_ADDR, 0x80);
     mmu.write_byte_override(NR_11_ADDR, 0xBF);
     mmu.write_byte_override(NR_12_ADDR, 0xF3);

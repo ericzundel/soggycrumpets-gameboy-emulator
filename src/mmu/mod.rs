@@ -43,8 +43,8 @@ pub struct Mmu {
 impl Mmu {
     //! I chose to use the Rc RefCell for the MMU so that the CPU and PPU could borrow a mutable
     //! reference to access it whenever they need to. It could just as easily be a global variable.
-    pub fn new() -> Rc<RefCell<Mmu>> {
-        let mmu = Mmu {
+    pub fn new() -> Mmu {
+        Mmu {
             dma: Dma::new(),
             timers: Timers::new(),
             rom_bank_00: [0; ROM_BANK_0_SIZE],
@@ -63,9 +63,7 @@ impl Mmu {
 
             vram_lock: false,
             oam_lock: false,
-        };
-
-        Rc::new(RefCell::new(mmu))
+        }
     }
 
     // TODO: Support bigger ROMs
@@ -90,7 +88,7 @@ pub struct Buttons {
     pub left: bool,
     pub right: bool,
     pub a: bool,
-    pub b: bool, 
+    pub b: bool,
 }
 
 impl Buttons {
@@ -107,8 +105,6 @@ impl Buttons {
         }
     }
 }
-
-
 
 mod debug {
     use super::*;
@@ -140,63 +136,62 @@ mod tests {
 
     #[test]
     fn test_read_write_byte() {
-        let mmu = Mmu::new();
+        let mut mmu = Mmu::new();
         let mut byte_reading;
 
         // Make sure the memory starts uninitialized
-        byte_reading = mmu.borrow().read_byte(ADDR);
+        byte_reading = mmu.read_byte(ADDR);
         assert_eq!(byte_reading, 0);
 
         // Write to memory
-        mmu.borrow_mut().write_byte(ADDR, BYTE);
+        mmu.write_byte(ADDR, BYTE);
 
         // Make sure the memory has changed to what we expect
-        byte_reading = mmu.borrow().read_byte(ADDR);
+        byte_reading = mmu.read_byte(ADDR);
         assert_eq!(byte_reading, BYTE);
     }
 
     #[test]
     fn test_read_write_word() {
-        let mmu = Mmu::new();
+        let mut mmu = Mmu::new();
         let mut word_reading;
 
         // Make sure the memory starts uninitialized
-        word_reading = mmu.borrow().read_word(ADDR);
+        word_reading = mmu.read_word(ADDR);
         assert_eq!(word_reading, 0);
 
         // Write to memory
-        mmu.borrow_mut().write_word(ADDR, WORD);
+        mmu.write_word(ADDR, WORD);
 
         // Make sure the memory has changed to what we expect
-        word_reading = mmu.borrow().read_word(ADDR);
+        word_reading = mmu.read_word(ADDR);
         assert_eq!(word_reading, WORD);
     }
 
     #[test]
     fn test_echo_ram() {
-        let (mmu, _, _) = create_gameboy_components();
+        let (mut mmu, _, _) = create_gameboy_components();
         let target_byte = 0xFF;
 
         // Writes to wram mirror to echo ram
         {
-            let initial_byte = mmu.borrow().read_byte(ECHO_RAM_START);
+            let initial_byte = mmu.read_byte(ECHO_RAM_START);
             assert_ne!(target_byte, initial_byte);
 
-            mmu.borrow_mut().write_byte(WRAM_0_START, target_byte);
+            mmu.write_byte(WRAM_0_START, target_byte);
 
-            let echoed_byte = mmu.borrow().read_byte(ECHO_RAM_START);
+            let echoed_byte = mmu.read_byte(ECHO_RAM_START);
             assert_eq!(target_byte, echoed_byte);
         }
 
         {
             // Writes to echo ram occur in wram (and work with wram1)
-            let initial_byte = mmu.borrow().read_byte(WRAM_1_START);
+            let initial_byte = mmu.read_byte(WRAM_1_START);
             assert_ne!(target_byte, initial_byte);
 
-            mmu.borrow_mut()
-                .write_byte(WRAM_1_START + ECHO_OFFSET, target_byte);
+            mmu.write_byte(WRAM_1_START + ECHO_OFFSET, target_byte);
 
-            let echoed_byte = mmu.borrow().read_byte(WRAM_1_START);
+            let echoed_byte = mmu.read_byte(WRAM_1_START);
             assert_eq!(target_byte, echoed_byte);
         }
     }
