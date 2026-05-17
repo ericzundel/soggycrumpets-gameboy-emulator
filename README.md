@@ -8,5 +8,5 @@ The following sources were my primary reference materials. Check them out, they 
 - https://gbdev.io/pandocs/About.html 
 - https://www.youtube.com/watch?v=HyzD8pNlpwI
 
-BGB is a great debugger for gameboy programs. I use it to verify the state of my emulator:
+BGB has a great debugger for gameboy programs. I use it to verify the state of my emulator:
 https://bgb.bircd.org/

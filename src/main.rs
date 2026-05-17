@@ -15,7 +15,6 @@ use cpu::registers::R16;
 use cpu::{Cpu, registers::R8};
 // use debugger::run_debug;
 use mmu::{Mmu, memmap::*};
-use ppu::FRAME_DOTS;
 use ppu::Ppu;
 use sdl2::keyboard::Scancode;
 use std::thread::sleep;
